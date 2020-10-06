@@ -242,6 +242,7 @@ class MyWindow(QMainWindow, form_class):
             self.label.setText("Video Path")
             self.label3.setText("None")
             self.label5.setText("None")
+            self.label7.setText("배속  x%d 배" % set_speed)
             self.label4.setText("")
             if os.path.isfile("./captured/frame.jpg"):
                 os.remove("./captured/frame.jpg")
@@ -566,6 +567,6 @@ class MyWindow(QMainWindow, form_class):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    myWindow = MyWindow()
-    myWindow.show()
+    Annotation_tool = MyWindow()
+    Annotation_tool.show()
     sys.exit(app.exec_())

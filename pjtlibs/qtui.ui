@@ -2,22 +2,19 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1250</width>
+    <width>1249</width>
     <height>722</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
-  </property>
-  <property name="toolTipDuration">
-   <number>12</number>
-  </property>
-  <property name="autoFillBackground">
-   <bool>false</bool>
+   <string>Video Annotation tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QPushButton" name="pushButton">
@@ -377,7 +374,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1250</width>
+     <width>1249</width>
      <height>22</height>
     </rect>
    </property>
