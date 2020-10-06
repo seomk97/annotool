@@ -3,16 +3,16 @@ import time
 from PyQt5.QtWidgets import *
 from PyQt5 import uic
 from PyQt5.QtGui import *
-# from PyQt5.QtCore import *
-from PyQt5 import QtCore, QtGui
+from PyQt5.QtCore import *
+# from PyQt5 import QtCore, QtGui
 from main import *
 import threading
-from queue import Queue
+# from queue import Queue
 
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
 video_path = None
-text = None 
+text = None
 copied_text = None
 framecount = 0
 handler = True
@@ -56,9 +56,12 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_6.clicked.connect(self.r_key)
         self.pushButton_7.clicked.connect(self.q_key)
         self.pushButton_8.clicked.connect(self.s_key)
-        self.pushButton_9.clicked.connect(self.f_key)
+        self.pushButton_9.clicked.connect(self.space_key)
         self.pushButton_10.clicked.connect(self.target_change)
-        self.pushButton_11.clicked.connect(self.speed)
+        self.pushButton_11.clicked.connect(self.speed_up)
+        self.pushButton_12.clicked.connect(self.speed_down)
+        self.pushButton_13.clicked.connect(self.open_folder)
+        self.label7.setText("배속  x%d 배" % set_speed)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
         self.pushButton.setShortcut('l')
@@ -69,8 +72,10 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_6.setShortcut('r')
         self.pushButton_7.setShortcut('q')
         self.pushButton_8.setShortcut('s')
-        self.pushButton_9.setShortcut('f')
+        self.pushButton_9.setShortcut(Qt.Key.Key_Space)
         self.pushButton_10.setShortcut('c')
+        self.pushButton_11.setShortcut(Qt.Key.Key_Right)
+        self.pushButton_12.setShortcut(Qt.Key.Key_Left)
 
     def file_load(self):
         global video_path
@@ -82,25 +87,34 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.pushButton_2.setEnabled(True)
             self.pushButton_7.setEnabled(True)
-            self.pushButton_11.setEnabled(True)
 
     def img_load(self):
         pixmap = QPixmap("./captured/frame.jpg")
         self.label2.setPixmap(pixmap)
 
     def start(self):
+        if os.path.isdir("./captured/"):
+            if os.listdir("./captured/"):
+                QMessageBox.about(self, "디렉토리 존재", "디렉토리에 이미 파일이 존재하니 확인해주세요")
+            else:
+                pass
+        else:
+            pass
+
         global flush
         global pause
         flush = False
         pause = False
-        self.pushButton_9.setText('Pause(F)')
+        self.pushButton_9.setText('Pause\n(space)')
+        self.pushButton_9.setShortcut(Qt.Key.Key_Space)
         Object_tracking(myobject, yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.1,
                         rectangle_colors=(255, 0, 0), Track_only=["person"])
         self.img_load()
+        if os.path.isfile("./captured/frame.jpg"):
+            os.remove("./captured/frame.jpg")
         self.pushButton_3.setEnabled(True)
         self.pushButton_2.setEnabled(False)
         self.pushButton_7.setEnabled(True)
-        self.pushButton_11.setEnabled(True)
 
     def input(self):
         global text
@@ -122,7 +136,7 @@ class MyWindow(QMainWindow, form_class):
         if pause:
             pass
         else:
-            self.f_key()
+            self.space_key()
 
         text, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
         if ok:
@@ -192,16 +206,16 @@ class MyWindow(QMainWindow, form_class):
         handler = True
         return
 
-    def f_key(self):
+    def space_key(self):
         global pause
         if not pause:
             pause = True
-            self.pushButton_9.setText('Play(F)')
-            self.pushButton_9.setShortcut('f')
+            self.pushButton_9.setText('Play\n(space)')
+            self.pushButton_9.setShortcut(Qt.Key.Key_Space)
         else:
             pause = False
-            self.pushButton_9.setText('Pause(F)')
-            self.pushButton_9.setShortcut('f')
+            self.pushButton_9.setText('Pause\n(space)')
+            self.pushButton_9.setShortcut(Qt.Key.Key_Space)
         return
 
     def q_key(self):
@@ -213,16 +227,18 @@ class MyWindow(QMainWindow, form_class):
         global end
         global flush
         global pause
+        global set_speed
 
         if pause:
             pass
         else:
-            self.f_key()
+            self.space_key()
 
         reply = QMessageBox.question(self, 'Message', '초기화합니까?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
             flush = True
+            set_speed = 1
             self.label.setText("Video Path")
             self.label3.setText("None")
             self.label5.setText("None")
@@ -244,6 +260,7 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_9.setEnabled(False)
             self.pushButton_10.setEnabled(False)
             self.pushButton_11.setEnabled(False)
+            self.pushButton_12.setEnabled(False)
             text = None
             end = False
         else:
@@ -258,6 +275,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_9.setEnabled(False)
                 self.pushButton_10.setEnabled(False)
                 self.pushButton_11.setEnabled(False)
+                self.pushButton_12.setEnabled(False)
             else:
                 self.pushButton_2.setEnabled(False)
                 self.pushButton_3.setEnabled(False)
@@ -269,11 +287,14 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_9.setEnabled(True)
                 self.pushButton_10.setEnabled(True)
                 self.pushButton_11.setEnabled(True)
+                self.pushButton_12.setEnabled(False)
 
     def over(self):
         global end
+        global set_speed
         QMessageBox.about(self, "비디오 끝", "마지막 프레임입니다 초기화해주세요")
         end = True
+        set_speed = 1
         self.pushButton_2.setEnabled(False)
         self.pushButton_3.setEnabled(False)
         self.pushButton_4.setEnabled(False)
@@ -284,6 +305,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_9.setEnabled(False)
         self.pushButton_10.setEnabled(False)
         self.pushButton_11.setEnabled(False)
+        self.pushButton_12.setEnabled(False)
 
     # def vidload(self):
     #     stream = cv2.VideoCapture(video_path[0])
@@ -308,13 +330,33 @@ class MyWindow(QMainWindow, form_class):
     #         elif Q.full():
     #             time.sleep(0.005)
 
-    def speed(self):
+    def speed_up(self):
+        self.pushButton_12.setEnabled(True)
         global set_speed
-        set_speed, ok = QInputDialog.getInt(self, 'Speed Select', '배속을 입력해주세요')
+        set_speed += 1
+        self.label7.setText("배속  x%d 배" % set_speed)
+
+    def speed_down(self):
+        global set_speed
+        if set_speed == 2:
+            set_speed = 1
+            self.label7.setText("배속  x%d 배" % set_speed)
+            self.pushButton_12.setEnabled(False)
+            return
+        set_speed -= 1
+        self.label7.setText("배속  x%d 배" % set_speed)
+
+    def open_folder(self):
+        if not os.path.isdir('./captured/'):
+            QMessageBox.about(self, "폴더 없음", "captured 폴더가 생성되지 않았습니다")
+        else:
+            # subprocess.Popen(['xdg-open', './captured/'])
+            os.system('xdg-open "%s"' % './captured/')
+        return
 
     def track(self):
         tracker.tracks = []
-        tracker._next_id = 1
+        tracker._next_id = 1 #트래커초기화
 
         self.pushButton_3.setEnabled(False)
         self.pushButton_4.setEnabled(False)
@@ -328,9 +370,9 @@ class MyWindow(QMainWindow, form_class):
         if not os.path.isdir('./captured/obj%d' % copied_text):
             os.mkdir('./captured/obj%d' % copied_text)
 
-        if not os.path.isfile('./captured/obj%d/%d.txt' % (copied_text, copied_text)):
-            with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'w') as f:
-                f.write("")
+        # if os.path.isfile('./captured/obj%d/%d.txt' % (copied_text, copied_text)):
+        #     with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'w') as f:
+        #         f.write("")
 
         while True:
             myobject = text
@@ -344,7 +386,7 @@ class MyWindow(QMainWindow, form_class):
                         self.pushButton_5.setEnabled(False)
                         self.pushButton_6.setEnabled(False)
                         self.pushButton_8.setEnabled(False)
-                        time.sleep(0.05)
+                        time.sleep(0.02)
                         if flush:
                             return
                         if not pause:
@@ -388,10 +430,6 @@ class MyWindow(QMainWindow, form_class):
 
             t1 = time.time()
             pred_bbox = YoloV3.predict(image_data)
-            t2 = time.time()
-            times.append(t2 - t1)
-            times = times[-20:]
-            fps = int(1000 / (sum(times) / len(times) * 1000))
 
             pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
             pred_bbox = tf.concat(pred_bbox, axis=0)
@@ -420,6 +458,11 @@ class MyWindow(QMainWindow, form_class):
 
             tracker.predict()
             tracker.update(detections)
+
+            t2 = time.time()
+            times.append(t2 - t1)
+            times = times[-20:]
+            fps = int(1000 / (sum(times) / len(times) * 1000))
 
             # Obtain info from the tracks
             tracked_bboxes = []
@@ -486,11 +529,10 @@ class MyWindow(QMainWindow, form_class):
                 image = cv2.putText(image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                     1, (0, 0, 255), 2)
 
-
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
-                qImg = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                self.label2.setPixmap(QPixmap.fromImage(qImg))
+                qimg = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                self.label2.setPixmap(QPixmap.fromImage(qimg))
 
 
                 # times3 = []
