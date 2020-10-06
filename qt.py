@@ -95,7 +95,8 @@ class MyWindow(QMainWindow, form_class):
     def start(self):
         if os.path.isdir("./captured/"):
             if os.listdir("./captured/"):
-                QMessageBox.about(self, "디렉토리 존재", "디렉토리에 이미 파일이 존재하니 확인해주세요")
+                QMessageBox.about(self, "디렉토리 존재", "파일이 이미 존재합니다")
+                return
             else:
                 pass
         else:
