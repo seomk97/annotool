@@ -11,22 +11,14 @@ from pjtlibs.deep_sort.tracker import Tracker
 from pjtlibs.deep_sort import generate_detections as gdet
 
 YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # coco 클래스 경로
-TRAIN_YOLO_TINY = False  # 타이니 사용 여부
-
-input_size = 416  # 인풋 사이즈
+input_size = 608  # 인풋 사이즈
 Darknet_weights = "./pjtlibs/yolov3.weights"  # your darknet weight path
-if TRAIN_YOLO_TINY:
-    Darknet_weights = "./pjtlibs/yolotiny.weights"  # yolo tiny path
-
-# video_path = "./visam.mp4"  # 비디오 경로
 
 yolo = Create_Yolov3(input_size=input_size)  # keras 네트워크 모델
 load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 웨이트 형식으로 로드
 
-myobject = None  # 추적대상지정
 
-
-def Object_tracking(myobject, YoloV3, video_path, output_path, input_size, show=False, CLASSES=YOLO_COCO_CLASSES,
+def Object_tracking(YoloV3, video_path, output_path, input_size, show=False, CLASSES=YOLO_COCO_CLASSES,
                     score_threshold=0.3, iou_threshold=0.45, rectangle_colors='', Track_only=[]):
     # Definition of the parameters
     max_cosine_distance = 0.5
@@ -95,7 +87,7 @@ def Object_tracking(myobject, YoloV3, video_path, output_path, input_size, show=
             index = key_list[val_list.index(class_name)]  # Get predicted object index by object name
             tracked_bboxes.append(bbox.tolist() + [tracking_id, index])  # Structure data, that we could use it with our draw_bbox function
 
-        if myobject is None and len(tracked_bboxes) != 0:
+        if len(tracked_bboxes) != 0:
             image = draw_bbox(original_image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
             if not os.path.isdir('./captured'):
                 os.mkdir('./captured')

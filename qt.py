@@ -108,7 +108,7 @@ class MyWindow(QMainWindow, form_class):
         pause = False
         self.pushButton_9.setText('Pause\n(space)')
         self.pushButton_9.setShortcut(Qt.Key.Key_Space)
-        Object_tracking(myobject, yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.1,
+        Object_tracking(yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.1,
                         rectangle_colors=(255, 0, 0), Track_only=["person"])
         self.img_load()
         if os.path.isfile("./captured/frame.jpg"):
@@ -469,7 +469,7 @@ class MyWindow(QMainWindow, form_class):
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 5: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
+                if not track.is_confirmed() or track.time_since_update > 10: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
                     continue
                 bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
                 class_name = track.get_class()  # Get the class name of particular object
