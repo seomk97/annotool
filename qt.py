@@ -21,12 +21,17 @@ flush = False
 pause = False
 objimg = np.array([])
 set_speed = 1
+target_only_view = False
+qimg_1 = 0
+qimg_2 = 0
+tracking = False
+lock = threading.Lock()
 
 YoloV3 = yolo
-score_threshold = 0.5
-iou_threshold = 0.1
+score_threshold = 0.3
+iou_threshold = 0.45
 CLASSES = YOLO_COCO_CLASSES
-max_cosine_distance = 0.5
+max_cosine_distance = 0.7
 nn_budget = None
 
 # initialize deep sort object
@@ -50,7 +55,7 @@ class MyWindow(QMainWindow, form_class):
         self.setupUi(self)
         self.pushButton.clicked.connect(self.file_load)
         self.pushButton_2.clicked.connect(self.start)
-        self.pushButton_3.clicked.connect(self.input)
+        self.pushButton_3.clicked.connect(self.select)
         self.pushButton_4.clicked.connect(self.thread)
         self.pushButton_5.clicked.connect(self.w_key)
         self.pushButton_6.clicked.connect(self.r_key)
@@ -61,6 +66,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_11.clicked.connect(self.speed_up)
         self.pushButton_12.clicked.connect(self.speed_down)
         self.pushButton_13.clicked.connect(self.open_folder)
+        self.pushButton_14.clicked.connect(self.target_only_view)
         self.label7.setText("배속  x%d 배" % set_speed)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
@@ -117,18 +123,39 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_2.setEnabled(False)
         self.pushButton_7.setEnabled(True)
 
-    def input(self):
+    def select(self):
         global text
         global copied_text
-        text, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
-        copied_text = text
-        if ok:
-            self.label3.setText('obj ' + str(copied_text))
-            self.label5.setText('person ' + str(text))
-            self.pushButton_4.setEnabled(True)
-        else:
-            text = None
-            return
+        global pause
+
+        if not tracking:
+            text, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
+            copied_text = text
+            if ok:
+                self.label3.setText('obj ' + str(copied_text))
+                self.label5.setText('person ' + str(text))
+                self.pushButton_4.setEnabled(True)
+            else:
+                text = None
+                self.label3.setText("None")
+                self.label5.setText("None")
+                self.pushButton_4.setEnabled(False)
+                return
+
+        if tracking:
+            if pause:
+                pass
+            else:
+                self.space_key()
+
+            text_2, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
+            if ok:
+                text = text_2
+                copied_text = text_2
+                self.label3.setText('obj ' + str(text))
+                self.label5.setText('person ' + str(text))
+            else:
+                return
 
     def target_change(self):
         global text
@@ -139,18 +166,18 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.space_key()
 
-        text, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
+        text_2, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
         if ok:
+            text = text_2
             self.label5.setText('person ' + str(text))
         else:
-            text = copied_text
             return
 
     def thread(self):
-        self.pushButton_3.setEnabled(False)
         self.pushButton_4.setEnabled(False)
         self.pushButton_10.setEnabled(True)
         self.pushButton_11.setEnabled(True)
+        self.pushButton_14.setEnabled(True)
         # th2 = threading.Thread(target=self.vidload)
         # th2.setDaemon(True)
         th = threading.Thread(target=self.track)
@@ -167,11 +194,11 @@ class MyWindow(QMainWindow, form_class):
             handler = True
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (copied_text, framecount), objimg)
+        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
+            f.write("%d.jpg walking\n" % framecount)
         self.label4.setText("%d.jpg   walking" % framecount)
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (copied_text, framecount))
         self.label6.setPixmap(pixmap_small)
-        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
-            f.write("%d.jpg walking\n" % framecount)
         handler = True
         return
 
@@ -183,11 +210,11 @@ class MyWindow(QMainWindow, form_class):
             handler = True
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (copied_text, framecount), objimg)
+        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
+            f.write("%d.jpg running\n" % framecount)
         self.label4.setText("%d.jpg   running" % framecount)
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (copied_text, framecount))
         self.label6.setPixmap(pixmap_small)
-        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
-            f.write("%d.jpg running\n" % framecount)
         handler = True
         return
 
@@ -199,11 +226,11 @@ class MyWindow(QMainWindow, form_class):
             handler = True
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (copied_text, framecount), objimg)
+        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
+            f.write("%d.jpg stop\n" % framecount)
         self.label4.setText("%d.jpg   stop" % framecount)
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (copied_text, framecount))
         self.label6.setPixmap(pixmap_small)
-        with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'a') as f:
-            f.write("%d.jpg stop\n" % framecount)
         handler = True
         return
 
@@ -229,6 +256,8 @@ class MyWindow(QMainWindow, form_class):
         global flush
         global pause
         global set_speed
+        global tracking
+        tracking = False
 
         if pause:
             pass
@@ -263,6 +292,7 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_10.setEnabled(False)
             self.pushButton_11.setEnabled(False)
             self.pushButton_12.setEnabled(False)
+            self.pushButton_14.setEnabled(False)
             text = None
             end = False
         else:
@@ -278,6 +308,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_10.setEnabled(False)
                 self.pushButton_11.setEnabled(False)
                 self.pushButton_12.setEnabled(False)
+                self.pushButton_14.setEnabled(False)
             else:
                 self.pushButton_2.setEnabled(False)
                 self.pushButton_3.setEnabled(False)
@@ -290,10 +321,13 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_10.setEnabled(True)
                 self.pushButton_11.setEnabled(True)
                 self.pushButton_12.setEnabled(False)
+                self.pushButton_14.setEnabled(False)
 
     def over(self):
         global end
         global set_speed
+        global tracking
+        tracking = False
         QMessageBox.about(self, "비디오 끝", "마지막 프레임입니다 초기화해주세요")
         end = True
         set_speed = 1
@@ -356,11 +390,19 @@ class MyWindow(QMainWindow, form_class):
             os.system('xdg-open "%s"' % './captured/')
         return
 
+    def target_only_view(self):
+        global target_only_view
+        if not target_only_view:
+            target_only_view = True
+            self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+        else:
+            target_only_view = False
+            self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+
     def track(self):
         tracker.tracks = []
         tracker._next_id = 1 #트래커초기화
 
-        self.pushButton_3.setEnabled(False)
         self.pushButton_4.setEnabled(False)
         vid = cv2.VideoCapture(video_path[0])
         Track_only = ['person']
@@ -368,27 +410,36 @@ class MyWindow(QMainWindow, form_class):
         framecount = 0
         times = []
         global handler
-
-        if not os.path.isdir('./captured/obj%d' % copied_text):
-            os.mkdir('./captured/obj%d' % copied_text)
+        global qimg_1, qimg_2
+        global tracking
+        tracking = True
 
         # if os.path.isfile('./captured/obj%d/%d.txt' % (copied_text, copied_text)):
         #     with open('./captured/obj%d/%d.txt' % (copied_text, copied_text), 'w') as f:
         #         f.write("")
 
         while True:
+            if not os.path.isdir('./captured/obj%d' % copied_text):
+                os.mkdir('./captured/obj%d' % copied_text)
+
             myobject = text
             ret, img = vid.read()
 
             if set_speed > 1:
+
                 for i in range(set_speed - 1):
                     ret, img = vid.read()
-                    framecount += 1
+                    while True:
+                        if not handler:
+                            time.sleep(0.005)
+                        else:
+                            framecount += 1
+                            break
                     while pause:
                         self.pushButton_5.setEnabled(False)
                         self.pushButton_6.setEnabled(False)
                         self.pushButton_8.setEnabled(False)
-                        time.sleep(0.02)
+                        time.sleep(0.005)
                         if flush:
                             return
                         if not pause:
@@ -410,7 +461,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_5.setEnabled(False)
                 self.pushButton_6.setEnabled(False)
                 self.pushButton_8.setEnabled(False)
-                time.sleep(0.05)
+                time.sleep(0.005)
                 if flush:
                     return
                 if not pause:
@@ -469,7 +520,7 @@ class MyWindow(QMainWindow, form_class):
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 10: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
+                if not track.is_confirmed() or track.time_since_update > 5: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
                     continue
                 bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
                 class_name = track.get_class()  # Get the class name of particular object
@@ -488,6 +539,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_9.setEnabled(True)
                 self.pushButton_10.setEnabled(True)
                 self.pushButton_11.setEnabled(True)
+                self.pushButton_14.setEnabled(True)
 
                 # print(framecount)
 
@@ -495,21 +547,26 @@ class MyWindow(QMainWindow, form_class):
                 for i, value in enumerate(tracked_bboxes):
                     if value[4] == myobject:
                         copied_tracked_bboxes = [tracked_bboxes.pop(i)]
-                        del tracked_bboxes[i]
                         break
                     else:
                         copied_tracked_bboxes = []
                         pass
 
                 if len(copied_tracked_bboxes) == 0:
-                    image = draw_bbox(original_image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
-                    image = cv2.putText(image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                    global qimg_1, qimg_2
+                    image = cv2.putText(original_image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
-
+                    image = draw_bbox(image, [], CLASSES=CLASSES, tracking=True)
                     h, w, ch = image.shape
                     bytesPerLine = ch * w
-                    qImg = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                    self.label2.setPixmap(QPixmap.fromImage(qImg))
+                    qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                    image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
+                    qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+
+                    if not target_only_view:
+                        self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+                    else:
+                        self.label2.setPixmap(QPixmap.fromImage(qimg_1))
 
                     framecount += 1
                     print(framecount)
@@ -525,17 +582,21 @@ class MyWindow(QMainWindow, form_class):
                 global objimg
                 objimg = np.array(original_image[y1:y2, x1:x2])
 
-                image = draw_bbox(original_image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
-                image = draw_bbox(image, copied_tracked_bboxes, CLASSES=CLASSES, Text_colors=(255, 255, 255),
-                                  rectangle_colors=(0, 128, 0), tracking=True)
-                image = cv2.putText(image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                image = cv2.putText(original_image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                     1, (0, 0, 255), 2)
-
+                image = draw_bbox(image, copied_tracked_bboxes, CLASSES=CLASSES, Text_colors=(255, 255, 255),
+                                      rectangle_colors=(0, 128, 0), tracking=True)
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
-                qimg = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                self.label2.setPixmap(QPixmap.fromImage(qimg))
+                qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
 
+                image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
+                qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+
+                if not target_only_view:
+                    self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+                else:
+                    self.label2.setPixmap(QPixmap.fromImage(qimg_1))
 
                 # times3 = []
                 # p1 = time.time()
@@ -556,10 +617,11 @@ class MyWindow(QMainWindow, form_class):
 
                 print(framecount, fps2)
 
-                if not handler:
-                    time.sleep(0.005)
-                else:
-                    pass
+                while True:
+                    if not handler:
+                        time.sleep(0.005)
+                    else:
+                        break
 
             else:
                 pass
