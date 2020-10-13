@@ -12,10 +12,10 @@
 # YOLO options
 import os
 import sys
-YOLO_TYPE                   = "yolov3" # yolov4 or yolov3
+YOLO_TYPE                   = "yolov4" # yolov4 or yolov3
 YOLO_FRAMEWORK              = "tf" # "tf" or "trt"
 YOLO_V3_WEIGHTS             = "./pjtlibs/yolov3.weights"
-YOLO_V4_WEIGHTS             = "./yolov4.weights"
+YOLO_V4_WEIGHTS             = "./pjtlibs/yolov4.weights"
 YOLO_V3_TINY_WEIGHTS        = "./yolov3-tiny.weights"
 YOLO_V4_TINY_WEIGHTS        = "./yolov4-tiny.weights"
 YOLO_TRT_QUANTIZE_MODE      = "INT8" # INT8, FP16, FP32
