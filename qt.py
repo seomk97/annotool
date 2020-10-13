@@ -11,7 +11,7 @@ import threading
 
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
-video_path = None
+video_path = []
 text = None
 copied_text = None
 framecount = 0
@@ -27,7 +27,7 @@ qimg_2 = 0
 tracking = False
 
 YoloV3 = yolo
-score_threshold = 0.3
+score_threshold = 0.5
 iou_threshold = 0.45
 CLASSES = YOLO_COCO_CLASSES
 max_cosine_distance = 0.7
@@ -84,14 +84,21 @@ class MyWindow(QMainWindow, form_class):
 
     def file_load(self):
         global video_path
-        video_path = QFileDialog.getOpenFileName(self, None, None, "Video files (*.mp4)")
-        print(video_path)
-        self.label.setText(video_path[0])
-        if video_path[0] is '':
+        video_path_buffer = QFileDialog.getOpenFileName(self, None, None, "Video files (*.mp4)")
+        if video_path_buffer[0] is not '' and video_path_buffer != video_path:
+            video_path = video_path_buffer
+            self.label.setText(video_path[0])
+            self.img_load()
+        else:
+            pass
+        if not video_path:
             self.pushButton_2.setEnabled(False)
         else:
-            self.pushButton_2.setEnabled(True)
-            self.pushButton_7.setEnabled(True)
+            if video_path_buffer[0] == '':
+                return
+            else:
+                self.pushButton_2.setEnabled(True)
+                self.pushButton_7.setEnabled(True)
 
     def img_load(self):
         pixmap = QPixmap("./captured/frame.jpg")
@@ -113,7 +120,7 @@ class MyWindow(QMainWindow, form_class):
         pause = False
         self.pushButton_9.setText('Pause\n(space)')
         self.pushButton_9.setShortcut(Qt.Key.Key_Space)
-        Object_tracking(yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.1,
+        Object_tracking(yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.3,
                         rectangle_colors=(255, 0, 0), Track_only=["person"])
         self.img_load()
         if os.path.isfile("./captured/frame.jpg"):
@@ -214,7 +221,7 @@ class MyWindow(QMainWindow, form_class):
     def s_key(self):
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
-            self.label4.setText("obj 추적실패 저장안됨")
+            self.label4.setText("추적실패")
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
         with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
@@ -540,8 +547,8 @@ class MyWindow(QMainWindow, form_class):
                 if not copied_tracked_bboxes:
                     global objimg
                     global qimg_1, qimg_2
-                    image = cv2.putText(original_image, "Time: {:.1f} FPS / Tracking Fail".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                                        1, (0, 0, 255), 2)
+                    image = cv2.putText(original_image, "Time: {:.1f} FPS \n Tracking Fail".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (255, 255, 255), 2)
                     h, w, ch = image.shape
                     bytesPerLine = ch * w
                     qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()

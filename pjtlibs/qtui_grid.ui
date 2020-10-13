@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1316</width>
+    <height>758</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Video Annotation tool</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="0" column="0">
+     <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <item row="13" column="15">
+       <widget class="QPushButton" name="pushButton_11">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>→</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="13" rowspan="2" colspan="3">
+       <widget class="QPushButton" name="pushButton_13">
+        <property name="text">
+         <string>폴더열기</string>
+        </property>
+       </widget>
+      </item>
+      <item row="16" column="0">
+       <widget class="QPushButton" name="pushButton_2">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>시작(A)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="0">
+       <widget class="QPushButton" name="pushButton">
+        <property name="text">
+         <string>불러오기(L)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="13" rowspan="2" colspan="3">
+       <widget class="QPushButton" name="pushButton_7">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>초기화(Q)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="13">
+       <widget class="QPushButton" name="pushButton_12">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>←</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="13" colspan="3">
+       <widget class="QLabel" name="label4">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Sunken</enum>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="14">
+       <widget class="QLabel" name="label7">
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="14" column="13" colspan="3">
+       <widget class="QPushButton" name="pushButton_14">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>대상만 표시</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="13" rowspan="10" colspan="3">
+       <widget class="QLabel" name="label6">
+        <property name="frameShape">
+         <enum>QFrame::Box</enum>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" rowspan="15" colspan="13">
+       <widget class="QLabel" name="label2">
+        <property name="frameShape">
+         <enum>QFrame::Box</enum>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="7">
+       <widget class="QLabel" name="label3">
+        <property name="autoFillBackground">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>None</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="16" column="7">
+       <widget class="QLabel" name="label5">
+        <property name="autoFillBackground">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>None</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="6">
+       <widget class="QPushButton" name="pushButton_3">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>오브젝트(O)</string>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="autoDefault">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="16" column="6">
+       <widget class="QPushButton" name="pushButton_10">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>타겟번호(C)</string>
+        </property>
+        <property name="checkable">
+         <bool>false</bool>
+        </property>
+        <property name="autoDefault">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="1" colspan="5">
+       <widget class="QLabel" name="label">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+        <property name="text">
+         <string>Video Path</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::PlainText</enum>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="8" rowspan="2">
+       <widget class="QPushButton" name="pushButton_4">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>추적(T)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="9" rowspan="2">
+       <widget class="QPushButton" name="pushButton_9">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Pause
+(space)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="10" rowspan="2">
+       <widget class="QPushButton" name="pushButton_5">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>W</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="11" rowspan="2">
+       <widget class="QPushButton" name="pushButton_6">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>R</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="12" rowspan="2">
+       <widget class="QPushButton" name="pushButton_8">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>S</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1316</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menumenu">
+    <property name="title">
+     <string>menu</string>
+    </property>
+    <addaction name="actionQuit"/>
+   </widget>
+   <addaction name="menumenu"/>
+  </widget>
+  <action name="actionQuit">
+   <property name="text">
+    <string>Quit</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

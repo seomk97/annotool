@@ -2,7 +2,8 @@ import os
 import cv2
 import numpy as np
 import tensorflow as tf
-from pjtlibs.yolov3.yolov3 import Create_Yolov3
+# from pjtlibs.yolov3.yolov3 import Create_Yolov3
+from pjtlibs.yolov3.yolov4 import Create_Yolo
 from pjtlibs.yolov3.utils import load_yolo_weights, image_preprocess, postprocess_boxes, nms, draw_bbox, read_class_names
 
 from pjtlibs.deep_sort import nn_matching
@@ -12,9 +13,9 @@ from pjtlibs.deep_sort import generate_detections as gdet
 
 YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # coco 클래스 경로
 input_size = 608  # 인풋 사이즈
-Darknet_weights = "./pjtlibs/yolov3.weights"  # your darknet weight path
+Darknet_weights = "./pjtlibs/yolov4.weights"  # your darknet weight path
 
-yolo = Create_Yolov3(input_size=input_size)  # keras 네트워크 모델
+yolo = Create_Yolo(input_size=input_size)  # keras 네트워크 모델
 load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 웨이트 형식으로 로드
 
 
