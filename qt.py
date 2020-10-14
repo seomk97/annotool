@@ -30,7 +30,7 @@ YoloV3 = yolo
 score_threshold = 0.5
 iou_threshold = 0.45
 CLASSES = YOLO_COCO_CLASSES
-max_cosine_distance = 0.7
+max_cosine_distance = 0.4
 nn_budget = None
 
 # initialize deep sort object
@@ -81,6 +81,8 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_10.setShortcut('c')
         self.pushButton_11.setShortcut(Qt.Key.Key_Right)
         self.pushButton_12.setShortcut(Qt.Key.Key_Left)
+        self.pushButton_13.setShortcut(Qt.Key.Key_Insert)
+        self.pushButton_14.setShortcut(Qt.Key.Key_Tab)
 
     def file_load(self):
         global video_path
@@ -99,10 +101,12 @@ class MyWindow(QMainWindow, form_class):
             else:
                 self.pushButton_2.setEnabled(True)
                 self.pushButton_7.setEnabled(True)
+                return
 
     def img_load(self):
         pixmap = QPixmap("./captured/frame.jpg")
         self.label2.setPixmap(pixmap)
+        return
 
     def start(self):
         if os.path.isdir("./captured/"):
@@ -128,6 +132,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_3.setEnabled(True)
         self.pushButton_2.setEnabled(False)
         self.pushButton_7.setEnabled(True)
+        return
 
     def select(self):
         global text
@@ -195,7 +200,7 @@ class MyWindow(QMainWindow, form_class):
     def w_key(self):
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
-            self.label4.setText("obj 추적실패 저장안됨")
+            self.label4.setText("추적실패")
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
         with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
@@ -208,7 +213,7 @@ class MyWindow(QMainWindow, form_class):
     def r_key(self):
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
-            self.label4.setText("obj 추적실패 저장안됨")
+            self.label4.setText("추적실패")
             return
         cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
         with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
@@ -292,6 +297,7 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_14.setEnabled(False)
             text = None
             end = False
+            return
         else:
             if end:
                 self.pushButton_2.setEnabled(False)
@@ -306,6 +312,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_11.setEnabled(False)
                 self.pushButton_12.setEnabled(False)
                 self.pushButton_14.setEnabled(False)
+                return
             else:
                 self.pushButton_2.setEnabled(False)
                 self.pushButton_3.setEnabled(False)
@@ -319,6 +326,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_11.setEnabled(True)
                 self.pushButton_12.setEnabled(False)
                 self.pushButton_14.setEnabled(False)
+                return
 
     def over(self):
         global end
@@ -339,6 +347,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_10.setEnabled(False)
         self.pushButton_11.setEnabled(False)
         self.pushButton_12.setEnabled(False)
+        return
 
     # def vidload(self):
     #     stream = cv2.VideoCapture(video_path[0])
@@ -368,6 +377,7 @@ class MyWindow(QMainWindow, form_class):
         global set_speed
         set_speed += 1
         self.label7.setText("배속  x%d 배" % set_speed)
+        return
 
     def speed_down(self):
         global set_speed
@@ -378,6 +388,7 @@ class MyWindow(QMainWindow, form_class):
             return
         set_speed -= 1
         self.label7.setText("배속  x%d 배" % set_speed)
+        return
 
     def open_folder(self):
         if not os.path.isdir('./captured/'):
@@ -392,9 +403,11 @@ class MyWindow(QMainWindow, form_class):
         if not target_only_view:
             target_only_view = True
             self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+            return
         else:
             target_only_view = False
             self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+            return
 
     def track(self):
         tracker.tracks = []
@@ -507,7 +520,7 @@ class MyWindow(QMainWindow, form_class):
             t2 = time.time()
             times.append(t2 - t1)
             times = times[-20:]
-            fps = int(1000 / (sum(times) / len(times) * 1000))
+            fps = 1000 / (sum(times) / len(times) * 1000)
 
             # Obtain info from the tracks
             tracked_bboxes = []
@@ -547,8 +560,10 @@ class MyWindow(QMainWindow, form_class):
                 if not copied_tracked_bboxes:
                     global objimg
                     global qimg_1, qimg_2
-                    image = cv2.putText(original_image, "Time: {:.1f} FPS \n Tracking Fail".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                                        1, (255, 255, 255), 2)
+                    image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (0, 0, 255), 2)
+                    image = cv2.putText(image, " Tracking Fail", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (0, 0, 255), 2)
                     h, w, ch = image.shape
                     bytesPerLine = ch * w
                     qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
@@ -569,8 +584,10 @@ class MyWindow(QMainWindow, form_class):
                     y2 = int(copied_tracked_bboxes[0][3])
                     objimg = np.array(original_image[y1:y2, x1:x2])
 
-                    image = cv2.putText(original_image, "Time: {:.1f} FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                    image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
+                    image = cv2.putText(image, " Tracking Success", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (0, 128, 0), 2)
                     image = draw_bbox(image, copied_tracked_bboxes, CLASSES=CLASSES, Text_colors=(255, 255, 255),
                                           rectangle_colors=(0, 128, 0), tracking=True)
                     h, w, ch = image.shape

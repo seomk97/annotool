@@ -359,13 +359,29 @@
     <property name="geometry">
      <rect>
       <x>1090</x>
-      <y>601</y>
+      <y>470</y>
       <width>151</width>
       <height>30</height>
      </rect>
     </property>
     <property name="text">
-     <string>폴더열기</string>
+     <string>폴더열기(Insert)</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_14">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>1090</x>
+      <y>590</y>
+      <width>151</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>대상만 표시(Tab)</string>
     </property>
    </widget>
   </widget>
