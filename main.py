@@ -12,17 +12,17 @@ from pjtlibs.deep_sort.tracker import Tracker
 from pjtlibs.deep_sort import generate_detections as gdet
 
 YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # coco 클래스 경로
-input_size = 416  # 인풋 사이즈
+input_size = 608  # 인풋 사이즈
 Darknet_weights = "./pjtlibs/yolov4.weights"  # your darknet weight path
 
-yolo = Create_Yolo(input_size=input_size)  # keras 네트워크 모델
-load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 웨이트 형식으로 로드
+yolo = Create_Yolo(input_size=input_size)  # 텐서플로우 네트워크 모델
+load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 모델로 로드
 
 
 def Object_tracking(YoloV3, video_path, output_path, input_size, show=False, CLASSES=YOLO_COCO_CLASSES,
-                    score_threshold=0.3, iou_threshold=0.45, rectangle_colors='', Track_only=[]):
+                    score_threshold=0.3, iou_threshold=0.1, rectangle_colors='', Track_only=[]):
     # Definition of the parameters
-    max_cosine_distance = 0.5
+    max_cosine_distance = 0.4
     nn_budget = None
 
     # initialize deep sort object

@@ -27,8 +27,8 @@ qimg_2 = 0
 tracking = False
 
 YoloV3 = yolo
-score_threshold = 0.5
-iou_threshold = 0.45
+score_threshold = 0.3
+iou_threshold = 0.1
 CLASSES = YOLO_COCO_CLASSES
 max_cosine_distance = 0.4
 nn_budget = None
