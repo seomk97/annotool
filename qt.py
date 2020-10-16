@@ -66,7 +66,6 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_12.clicked.connect(self.speed_down)
         self.pushButton_13.clicked.connect(self.open_folder)
         self.pushButton_14.clicked.connect(self.target_only_view)
-        self.label7.setText("배속  x%d 배" % set_speed)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
         self.pushButton.setShortcut('l')
@@ -165,6 +164,7 @@ class MyWindow(QMainWindow, form_class):
                 copied_text = text_2
                 self.label3.setText('obj ' + str(text))
                 self.label5.setText('person ' + str(text))
+                self.space_key()
             else:
                 return
 
@@ -177,14 +177,16 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.space_key()
 
-        text_2, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
+        text_2, ok = QInputDialog.getInt(self, 'Target Change', '타겟번호을 입력해주세요')
         if ok:
             text = text_2
             self.label5.setText('person ' + str(text))
+            self.space_key()
         else:
             return
 
     def thread(self):
+        self.pushButton.setEnabled(False)
         self.pushButton_4.setEnabled(False)
         self.pushButton_10.setEnabled(True)
         self.pushButton_11.setEnabled(True)
@@ -259,7 +261,6 @@ class MyWindow(QMainWindow, form_class):
         global pause
         global set_speed
         global tracking
-        tracking = False
 
         if pause:
             pass
@@ -269,6 +270,7 @@ class MyWindow(QMainWindow, form_class):
         reply = QMessageBox.question(self, 'Message', '초기화합니까?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
+            tracking = False
             flush = True
             set_speed = 1
             self.label.setText("Video Path")
@@ -283,6 +285,7 @@ class MyWindow(QMainWindow, form_class):
             self.img_load()
             pixmap = QPixmap("./captured/frame.jpg")
             self.label6.setPixmap(pixmap)
+            self.pushButton.setEnabled(True)
             self.pushButton_2.setEnabled(False)
             self.pushButton_3.setEnabled(False)
             self.pushButton_4.setEnabled(False)
@@ -315,7 +318,7 @@ class MyWindow(QMainWindow, form_class):
                 return
             else:
                 self.pushButton_2.setEnabled(False)
-                self.pushButton_3.setEnabled(False)
+                self.pushButton_3.setEnabled(True)
                 self.pushButton_4.setEnabled(False)
                 self.pushButton_5.setEnabled(True)
                 self.pushButton_6.setEnabled(True)
@@ -413,7 +416,6 @@ class MyWindow(QMainWindow, form_class):
         tracker.tracks = []
         tracker._next_id = 1  # 트래커초기화
 
-        self.pushButton_4.setEnabled(False)
         vid = cv2.VideoCapture(video_path[0])
         Track_only = ['person']
         global framecount
@@ -525,7 +527,7 @@ class MyWindow(QMainWindow, form_class):
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 5: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
+                if not track.is_confirmed() or track.time_since_update > 1: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
                     continue
                 bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
                 class_name = track.get_class()  # Get the class name of particular object
@@ -558,6 +560,10 @@ class MyWindow(QMainWindow, form_class):
                         pass
 
                 if not copied_tracked_bboxes:
+                    self.pushButton_5.setEnabled(False)
+                    self.pushButton_6.setEnabled(False)
+                    self.pushButton_8.setEnabled(False)
+
                     global objimg
                     global qimg_1, qimg_2
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,

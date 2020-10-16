@@ -272,10 +272,10 @@
    <widget class="QLabel" name="label6">
     <property name="geometry">
      <rect>
-      <x>1100</x>
-      <y>250</y>
-      <width>131</width>
-      <height>181</height>
+      <x>1105</x>
+      <y>190</y>
+      <width>121</width>
+      <height>241</height>
      </rect>
     </property>
     <property name="frameShape">
