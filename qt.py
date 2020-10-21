@@ -8,6 +8,7 @@ from PyQt5.QtCore import *
 from main import *
 import threading
 # from queue import Queue
+import json
 
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
@@ -28,6 +29,10 @@ tracking = False
 box_of_frame = []
 framejump = False
 jump_to_frame = 0
+workspace = []
+tracks_temp = []
+jumped = False
+target_changed = 0
 
 YoloV3 = yolo
 score_threshold = 0.3
@@ -45,9 +50,6 @@ tracker = Tracker(metric)
 NUM_CLASS = read_class_names(CLASSES)  # name strip 하는 커스텀함수 from utils
 key_list = list(NUM_CLASS.keys())
 val_list = list(NUM_CLASS.values())
-#
-# queueSize = 32
-# Q = Queue(maxsize=queueSize)
 
 
 class MyWindow(QMainWindow, form_class):
@@ -69,7 +71,10 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_12.clicked.connect(self.speed_down)
         self.pushButton_13.clicked.connect(self.open_folder)
         self.pushButton_14.clicked.connect(self.target_only_view)
-        self.horizontalSlider.sliderMoved.connect(self.slider)
+        self.pushButton_15.clicked.connect(self.make_json)
+        self.horizontalSlider.sliderMoved.connect(self.slider_moved)
+        self.horizontalSlider.sliderReleased.connect(self.slider_released)
+        self.listWidget.itemDoubleClicked.connect(self.item_double_clicked)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
         self.pushButton.setShortcut('l')
@@ -181,6 +186,7 @@ class MyWindow(QMainWindow, form_class):
     def target_change(self):
         global text
         global pause
+        global target_changed
 
         if pause:
             pass
@@ -191,7 +197,8 @@ class MyWindow(QMainWindow, form_class):
         if ok:
             text = text_2
             self.label5.setText('person ' + str(text))
-            self.space_key()
+            target_changed = 1
+            return
         else:
             return
 
@@ -210,40 +217,121 @@ class MyWindow(QMainWindow, form_class):
         return
 
     def w_key(self):
+        global workspace
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
             self.label4.setText("추적실패")
             return
-        cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
-        with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
-            f.write("%d.jpg walking\n" % framecount)
-        self.label4.setText("%d.jpg   walking" % framecount)
+        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
+            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+            for i, workspace_item in enumerate(workspace):
+                if workspace_item[0] == label_n_count[1]:
+                    workspace.pop(i)
+                    self.listWidget.takeItem(i)
+                else:
+                    pass
+        else:
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        workspace.append([label_n_count[1], "walking", objimg])
+        workspace.sort()
+
+        for i, workspace_item in enumerate(workspace):
+            if workspace_item[0] == label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   walking" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+                break
+
+            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   walking" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+            elif workspace_item[0] < label_n_count[1]:
+                pass
+
+        self.label4.setText("%d.jpg   walking" % label_n_count[1])
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
         self.label6.setPixmap(pixmap_small)
         return
 
     def r_key(self):
+        global workspace
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
             self.label4.setText("추적실패")
             return
-        cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
-        with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
-            f.write("%d.jpg running\n" % framecount)
-        self.label4.setText("%d.jpg   running" % framecount)
+        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
+            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+            for i, workspace_item in enumerate(workspace):
+                if workspace_item[0] == label_n_count[1]:
+                    workspace.pop(i)
+                    self.listWidget.takeItem(i)
+                else:
+                    pass
+        else:
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        workspace.append([label_n_count[1], "running", objimg])
+        workspace.sort()
+
+        for i, workspace_item in enumerate(workspace):
+            if workspace_item[0] == label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   running" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+                break
+
+            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   running" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+            elif workspace_item[0] < label_n_count[1]:
+                pass
+
+        self.label4.setText("%d.jpg   running" % label_n_count[1])
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
         self.label6.setPixmap(pixmap_small)
         return
 
     def s_key(self):
+        global workspace
         label_n_count = [copied_text, framecount]
         if len(objimg) == 0:
             self.label4.setText("추적실패")
             return
-        cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
-        with open('./captured/obj%d/%d.txt' % (label_n_count[0], label_n_count[0]), 'a') as f:
-            f.write("%d.jpg stop\n" % framecount)
-        self.label4.setText("%d.jpg   stop" % framecount)
+        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
+            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+            for i, workspace_item in enumerate(workspace):
+                if workspace_item[0] == label_n_count[1]:
+                    workspace.pop(i)
+                    self.listWidget.takeItem(i)
+                else:
+                    pass
+        else:
+            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        workspace.append([label_n_count[1], "stop", objimg])
+        workspace.sort()
+
+        for i, workspace_item in enumerate(workspace):
+            if workspace_item[0] == label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   stop" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+                break
+
+            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                self.listWidget.insertItem(i, "%d   stop" % label_n_count[1])
+                if len(workspace)-1 == i:
+                    self.listWidget.scrollToBottom()
+            elif workspace_item[0] < label_n_count[1]:
+                pass
+
+        self.label4.setText("%d.jpg   stop" % label_n_count[1])
         pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
         self.label6.setPixmap(pixmap_small)
         return
@@ -256,10 +344,10 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_9.setShortcut(Qt.Key.Key_Space)
             self.horizontalSlider.setEnabled(True)
         else:
-            self.horizontalSlider.setEnabled(False)
             pause = False
             self.pushButton_9.setText('Pause\n(space)')
             self.pushButton_9.setShortcut(Qt.Key.Key_Space)
+            self.horizontalSlider.setEnabled(False)
         return
 
     def q_key(self):
@@ -273,6 +361,7 @@ class MyWindow(QMainWindow, form_class):
         global pause
         global set_speed
         global tracking
+        global workspace
 
         if pause:
             pass
@@ -292,8 +381,6 @@ class MyWindow(QMainWindow, form_class):
             self.label4.setText("")
             if os.path.isfile("./captured/frame.jpg"):
                 os.remove("./captured/frame.jpg")
-            # if os.path.isdir("./captured/obj%d/" % text) and text is not None:
-            #     os.remove("./captured/obj%d/" % text)
             self.img_load()
             pixmap = QPixmap("./captured/frame.jpg")
             self.label6.setPixmap(pixmap)
@@ -312,6 +399,9 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_14.setEnabled(False)
             text = None
             end = False
+            self.horizontalSlider.setValue(0)
+            self.listWidget.clear()
+            workspace = []
             return
         else:
             if end:
@@ -340,7 +430,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_10.setEnabled(True)
                 self.pushButton_11.setEnabled(True)
                 self.pushButton_12.setEnabled(False)
-                self.pushButton_14.setEnabled(False)
+                self.pushButton_14.setEnabled(True)
                 return
 
     def over(self):
@@ -363,29 +453,6 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_11.setEnabled(False)
         self.pushButton_12.setEnabled(False)
         return
-
-    # def vidload(self):
-    #     stream = cv2.VideoCapture(video_path[0])
-    #     # count2 = 0
-    #     if flush:
-    #         return
-    #
-    #     while True:
-    #         if not Q.full():
-    #             # count2 += 1
-    #             # print("working? %d" % count2)
-    #             ret, frame = stream.read()
-    #             original_image = frame
-    #
-    #             image_data = image_preprocess(np.copy(original_image), [input_size, input_size])  # 인풋 프레임 전처리
-    #             image_data = tf.expand_dims(image_data, 0)
-    #
-    #             if not ret:
-    #                 return
-    #             Q.put((ret, image_data, original_image))
-    #
-    #         elif Q.full():
-    #             time.sleep(0.005)
 
     def speed_up(self):
         self.pushButton_12.setEnabled(True)
@@ -424,10 +491,57 @@ class MyWindow(QMainWindow, form_class):
             self.label2.setPixmap(QPixmap.fromImage(qimg_2))
             return
 
-    def slider(self):
+    def slider_moved(self):
+        if tracking and not pause:
+            return
         global framejump, jump_to_frame
         framejump = True
         jump_to_frame = self.horizontalSlider.value()
+
+    def slider_released(self):
+        if tracking and not pause:
+            return
+        global framejump, jump_to_frame, target_changed
+        framejump = True
+        jump_to_frame = self.horizontalSlider.value()
+        target_changed = 1
+
+    def item_double_clicked(self):
+        # global tracking
+        # tracking = False
+        global jumped, jump_to_frame
+        if pause:
+            self.space_key()
+        else:
+            pass
+        item_index = self.listWidget.currentRow()
+        self.horizontalSlider.setValue(workspace[item_index][0])
+        jump_to_frame = self.horizontalSlider.value()
+        pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (copied_text, workspace[item_index][0]))
+        self.label6.setPixmap(pixmap_small)
+        self.label4.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
+        self.horizontalSlider.setValue(workspace[item_index][0])
+        # self.slider()
+        jumped = True
+        # tracking = True
+        return
+
+    def make_json(self):
+        workspace_frame_list = []
+        workspace_label_list = []
+        if workspace:
+            for i, workspace_things in enumerate(workspace):
+                workspace_frame_list.append(int(workspace_things[0]))
+                workspace_label_list.append(workspace_things[1])
+        else:
+            return
+
+        json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
+        # json_val = json.dumps(json_dict)
+        with open("./captured/obj%d/%d.json" % (copied_text, copied_text), "w") as json_file:
+            json.dump(json_dict, json_file)
+
+        return
 
     def track(self):
         tracker.tracks = []
@@ -437,7 +551,7 @@ class MyWindow(QMainWindow, form_class):
 
         Track_only = ['person']
         global framecount
-        framecount = 0
+        framecount = 0.0
         times = []
         global handler
         global qimg_1, qimg_2
@@ -445,92 +559,163 @@ class MyWindow(QMainWindow, form_class):
         tracking = True
         global framejump
         global box_of_frame
+        global objimg
+        global jumped
+        jump_count = None
+        global target_changed
+        global pause
 
         while True:
             if not os.path.isdir('./captured/obj%d' % copied_text):
                 os.mkdir('./captured/obj%d' % copied_text)
 
             myobject = text
-            ret, img = vid.read()
-            self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
 
-            if set_speed > 1:
-                for i in range(set_speed - 1):
-                    ret, img = vid.read()
-                    self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
-                    framecount += 1
-
-                while pause:
-                    if framejump:
-                        vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                        ret, img = vid.read()
-                        tracker.tracks = []
-                        tracker._next_id = 1
-                        h, w, ch = img.shape
-                        bytesPerLine = ch * w
-                        qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_3))
-                        framecount = jump_to_frame
-                        framejump = False
-                    else:
-                        pass
-                    self.pushButton_5.setEnabled(False)
-                    self.pushButton_6.setEnabled(False)
-                    self.pushButton_8.setEnabled(False)
-                    time.sleep(0.005)
-                    if flush:
-                        return
-                    if not pause:
-                        self.pushButton_5.setEnabled(True)
-                        self.pushButton_6.setEnabled(True)
-                        self.pushButton_8.setEnabled(True)
-                        break
+            if pause:
+                pass
             else:
+                ret, img = vid.read()
+                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
+
+            if target_changed == 3:
+                target_changed = 0
+                vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
+                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
+                self.space_key()
+
+            if target_changed == 2:
+                target_changed = 3
                 pass
 
-            # ret, image_data, original_image = Q.get()
             if not ret:
                 self.over()
                 return
             else:
                 pass
 
+            if jumped:
+                if jump_to_frame > 8:
+                    vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame - 8)
+                    framecount = jump_to_frame - 8
+                else:
+                    vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    framecount = 0
+
+                tracker.tracks = []
+                tracker._next_id = 1
+                jump_count = 0
+                jumped = False
+
+            if jump_count is None:
+                pass
+            elif jump_count <= 10:
+                jump_count += 1
+                self.pushButton_5.setEnabled(False)
+                self.pushButton_6.setEnabled(False)
+                self.pushButton_8.setEnabled(False)
+                self.pushButton_9.setEnabled(False)
+            elif jump_count > 10:
+                vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
+                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
+                self.space_key()
+                self.pushButton_5.setEnabled(True)
+                self.pushButton_6.setEnabled(True)
+                self.pushButton_8.setEnabled(True)
+                self.pushButton_9.setEnabled(True)
+                jump_count = None
+
+            if set_speed > 1:
+                if jump_count is not None:
+                    pass
+                else:
+                    while pause:
+                        if framejump:
+                            vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
+                            tracker.tracks = []
+                            tracker._next_id = 1
+                            ret, img = vid.read()
+                            h, w, ch = img.shape
+                            bytesPerLine = ch * w
+                            qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                            self.label2.setPixmap(QPixmap.fromImage(qimg_3))
+                            framecount = jump_to_frame
+                            self.pushButton_14.setEnabled(True)
+                            framejump = False
+                        else:
+                            pass
+
+                        if not copied_tracked_bboxes:
+                            self.pushButton_5.setEnabled(False)
+                            self.pushButton_6.setEnabled(False)
+                            self.pushButton_8.setEnabled(False)
+
+                        time.sleep(0.005)
+                        if target_changed == 1 or target_changed == 2:
+                            self.space_key()
+                        if jumped:
+                            break
+                        if flush:
+                            return
+                        if not pause:
+                            # self.pushButton_5.setEnabled(True)
+                            # self.pushButton_6.setEnabled(True)
+                            # self.pushButton_8.setEnabled(True)
+                            break
+
+                    for i in range(set_speed - 1):
+                        ret, img = vid.read()
+                        self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
+
+            else:
+                pass
+
             while pause:
                 if framejump:
                     vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                    ret, img = vid.read()
                     tracker.tracks = []
                     tracker._next_id = 1
+                    ret, img = vid.read()
                     h, w, ch = img.shape
                     bytesPerLine = ch * w
                     qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
                     self.label2.setPixmap(QPixmap.fromImage(qimg_3))
                     framecount = jump_to_frame
+                    self.pushButton_14.setEnabled(True)
                     framejump = False
                 else:
                     pass
-                self.pushButton_5.setEnabled(False)
-                self.pushButton_6.setEnabled(False)
-                self.pushButton_8.setEnabled(False)
+
+                if not copied_tracked_bboxes:
+                    self.pushButton_5.setEnabled(False)
+                    self.pushButton_6.setEnabled(False)
+                    self.pushButton_8.setEnabled(False)
+
                 time.sleep(0.005)
+                if target_changed == 1 or target_changed == 2:
+                    self.space_key()
+                if jumped:
+                    break
                 if flush:
                     return
                 if not pause:
-                    self.pushButton_5.setEnabled(True)
-                    self.pushButton_6.setEnabled(True)
-                    self.pushButton_8.setEnabled(True)
+                    # self.pushButton_5.setEnabled(True)
+                    # self.pushButton_6.setEnabled(True)
+                    # self.pushButton_8.setEnabled(True)
                     break
 
+            if target_changed == 1:
+                vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
+                target_changed = 2
+                continue
+
+            if jumped:
+                continue
+
             original_image = img
+            self.horizontalSlider.setValue(framecount)
 
             image_data = image_preprocess(np.copy(original_image), [input_size, input_size])  # 인풋 프레임 전처리
             image_data = tf.expand_dims(image_data, 0)
-
-            # try:
-            #     original_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            #     original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-            # except:
-            #     break
 
             t1 = time.time()
             pred_bbox = YoloV3.predict(image_data)
@@ -582,16 +767,17 @@ class MyWindow(QMainWindow, form_class):
 
             if len(tracked_bboxes) != 0:
 
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_7.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
-                self.pushButton_9.setEnabled(True)
-                self.pushButton_10.setEnabled(True)
-                self.pushButton_11.setEnabled(True)
+                if jump_count is None:
+                    self.pushButton_5.setEnabled(True)
+                    self.pushButton_6.setEnabled(True)
+                    self.pushButton_7.setEnabled(True)
+                    self.pushButton_8.setEnabled(True)
+                    self.pushButton_9.setEnabled(True)
+                    self.pushButton_10.setEnabled(True)
+                    self.pushButton_11.setEnabled(True)
+                else:
+                    pass
                 self.pushButton_14.setEnabled(True)
-
-                # print(framecount)
 
                 copied_tracked_bboxes = []
                 for i, value in enumerate(tracked_bboxes):
@@ -607,8 +793,6 @@ class MyWindow(QMainWindow, form_class):
                     self.pushButton_6.setEnabled(False)
                     self.pushButton_8.setEnabled(False)
 
-                    global objimg
-                    global qimg_1, qimg_2
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
                     image = cv2.putText(image, " Tracking Fail", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
@@ -631,7 +815,7 @@ class MyWindow(QMainWindow, form_class):
                     y1 = int(copied_tracked_bboxes[0][1])
                     x2 = int(copied_tracked_bboxes[0][2])
                     y2 = int(copied_tracked_bboxes[0][3])
-                    objimg = np.array(original_image[y1:y2, x1:x2])
+                    objimg = np.array(original_image[y1-5:y2+5, x1-5:x2+5])
 
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
@@ -651,17 +835,6 @@ class MyWindow(QMainWindow, form_class):
                     else:
                         self.label2.setPixmap(QPixmap.fromImage(qimg_1))
 
-                # times3 = []
-                # p1 = time.time()
-                #
-                # cv2.imwrite("./captured/frame.jpg", image)
-                # self.img_load()
-                #
-                # p2 = time.time()
-                # times3.append(p2 - p1)
-                # times3 = times3[-20:]
-                # fps3 = int(1000 / (sum(times3) / len(times3) * 1000))
-
                 times_2 = []
                 t3 = time.time()
                 times_2.append(t3 - t1)
@@ -672,8 +845,6 @@ class MyWindow(QMainWindow, form_class):
 
             else:
                 pass
-
-            framecount += 1
 
 
 if __name__ == "__main__":

@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1249</width>
-    <height>757</height>
+    <width>1247</width>
+    <height>751</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -185,7 +185,7 @@
       <x>1090</x>
       <y>640</y>
       <width>151</width>
-      <height>51</height>
+      <height>80</height>
      </rect>
     </property>
     <property name="text">
@@ -212,7 +212,7 @@
     <property name="geometry">
      <rect>
       <x>1091</x>
-      <y>440</y>
+      <y>480</y>
       <width>150</width>
       <height>21</height>
      </rect>
@@ -272,9 +272,9 @@
    <widget class="QLabel" name="label6">
     <property name="geometry">
      <rect>
-      <x>1105</x>
-      <y>190</y>
-      <width>121</width>
+      <x>1100</x>
+      <y>230</y>
+      <width>130</width>
       <height>241</height>
      </rect>
     </property>
@@ -351,6 +351,9 @@
     <property name="frameShape">
      <enum>QFrame::NoFrame</enum>
     </property>
+    <property name="text">
+     <string>배속  x1 배</string>
+    </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
     </property>
@@ -359,7 +362,7 @@
     <property name="geometry">
      <rect>
       <x>1090</x>
-      <y>470</y>
+      <y>510</y>
       <width>151</width>
       <height>30</height>
      </rect>
@@ -390,11 +393,14 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>10</x>
-      <y>650</y>
-      <width>1070</width>
+      <x>20</x>
+      <y>647</y>
+      <width>1031</width>
       <height>20</height>
      </rect>
+    </property>
+    <property name="tracking">
+     <bool>true</bool>
     </property>
     <property name="orientation">
      <enum>Qt::Horizontal</enum>
@@ -409,7 +415,7 @@
    <widget class="QLabel" name="label8">
     <property name="geometry">
      <rect>
-      <x>7</x>
+      <x>18</x>
       <y>630</y>
       <width>20</width>
       <height>17</height>
@@ -425,7 +431,7 @@
    <widget class="QLabel" name="label9">
     <property name="geometry">
      <rect>
-      <x>1015</x>
+      <x>1018</x>
       <y>631</y>
       <width>70</width>
       <height>17</height>
@@ -438,13 +444,39 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
+   <widget class="QListWidget" name="listWidget">
+    <property name="geometry">
+     <rect>
+      <x>1100</x>
+      <y>10</y>
+      <width>130</width>
+      <height>181</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_15">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>1120</x>
+      <y>200</y>
+      <width>89</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>make json</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1249</width>
+     <width>1247</width>
      <height>22</height>
     </rect>
    </property>
