@@ -33,6 +33,10 @@ workspace = []
 tracks_temp = []
 jumped = False
 target_changed = 0
+writing_dir = ""
+button_checkable = False
+toggle_button = False
+action_started = 0
 
 YoloV3 = yolo
 score_threshold = 0.3
@@ -59,8 +63,8 @@ class MyWindow(QMainWindow, form_class):
         self.setupUi(self)
         self.pushButton.clicked.connect(self.file_load)
         self.pushButton_2.clicked.connect(self.start)
-        self.pushButton_3.clicked.connect(self.select)
-        self.pushButton_4.clicked.connect(self.thread)
+        self.pushButton_3.clicked.connect(self.object_select)
+        self.pushButton_4.clicked.connect(self.my_thread)
         self.pushButton_5.clicked.connect(self.w_key)
         self.pushButton_6.clicked.connect(self.r_key)
         self.pushButton_7.clicked.connect(self.q_key)
@@ -72,6 +76,8 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_13.clicked.connect(self.open_folder)
         self.pushButton_14.clicked.connect(self.target_only_view)
         self.pushButton_15.clicked.connect(self.make_json)
+        self.pushButton_16.clicked.connect(self.item_delete)
+        self.pushButton_17.clicked.connect(self.record_action_toggle)
         self.horizontalSlider.sliderMoved.connect(self.slider_moved)
         self.horizontalSlider.sliderReleased.connect(self.slider_released)
         self.listWidget.itemDoubleClicked.connect(self.item_double_clicked)
@@ -89,8 +95,10 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_10.setShortcut('c')
         self.pushButton_11.setShortcut(Qt.Key.Key_Right)
         self.pushButton_12.setShortcut(Qt.Key.Key_Left)
-        self.pushButton_13.setShortcut(Qt.Key.Key_Insert)
+        self.pushButton_13.setShortcut(Qt.Key.Key_Home)
         self.pushButton_14.setShortcut(Qt.Key.Key_Tab)
+        self.pushButton_15.setShortcut(Qt.Key.Key_Insert)
+        self.pushButton_16.setShortcut(Qt.Key.Key_Delete)
 
     def file_load(self):
         global video_path
@@ -123,14 +131,14 @@ class MyWindow(QMainWindow, form_class):
         return
 
     def start(self):
-        if os.path.isdir("./captured/"):
-            if os.listdir("./captured/"):
-                QMessageBox.about(self, "디렉토리 존재", "파일이 이미 존재합니다")
-                return
-            else:
-                pass
-        else:
-            pass
+        # if os.path.isdir("./captured/"):
+        #     if os.listdir("./captured/"):
+        #         QMessageBox.about(self, "디렉토리 존재", "파일이 이미 존재합니다")
+        #         # return
+        #     else:
+        #         pass
+        # else:
+        #     pass
 
         global flush
         global pause
@@ -148,10 +156,12 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_7.setEnabled(True)
         return
 
-    def select(self):
+    def object_select(self):
         global text
         global copied_text
         global pause
+        global writing_dir
+        global workspace
 
         if not tracking:
             text, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
@@ -175,8 +185,15 @@ class MyWindow(QMainWindow, form_class):
 
             text_2, ok = QInputDialog.getInt(self, 'Object Select', '오브젝트 번호를 입력해주세요')
             if ok:
+                if text != text_2:
+                    self.make_json()
+                    writing_dir = ""
+                    workspace = []
+                    self.listWidget.clear()
+                else:
+                    pass
                 text = text_2
-                copied_text = text_2
+                copied_text = text
                 self.label3.setText('obj ' + str(text))
                 self.label5.setText('person ' + str(text))
                 self.space_key()
@@ -202,12 +219,13 @@ class MyWindow(QMainWindow, form_class):
         else:
             return
 
-    def thread(self):
+    def my_thread(self):
         self.pushButton.setEnabled(False)
         self.pushButton_4.setEnabled(False)
         self.pushButton_10.setEnabled(True)
         self.pushButton_11.setEnabled(True)
         self.pushButton_14.setEnabled(True)
+        self.pushButton_17.setEnabled(True)
         # th2 = threading.Thread(target=self.vidload)
         # th2.setDaemon(True)
         th = threading.Thread(target=self.track)
@@ -218,123 +236,405 @@ class MyWindow(QMainWindow, form_class):
 
     def w_key(self):
         global workspace
+        global action_started
         label_n_count = [copied_text, framecount]
-        if len(objimg) == 0:
-            self.label4.setText("추적실패")
-            return
-        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
-            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        if button_checkable:
+            button5_checked = self.pushButton_5.isChecked()
+            self.pushButton_6.setEnabled(False)
+            self.pushButton_8.setEnabled(False)
+            if button5_checked:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "start_walking", objimg])
+                workspace.sort()
+                action_started = label_n_count[1]
+
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_walking " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                        break
+
+                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_walking " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                    elif workspace_item[0] < label_n_count[1]:
+                        pass
+
+                self.label4.setText("%d.jpg   start_walking" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                return
+            else:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "end_walking", objimg])
+                workspace.sort()
+
+                check = True
+                while check:
+                    for i, workspace_item in enumerate(workspace):
+                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
+                            self.listWidget.insertItem(i, " %d    end_walking " % label_n_count[1])
+                            self.listWidget.setCurrentRow(i)
+                            if len(workspace) - 1 == i:
+                                self.listWidget.scrollToBottom()
+                            check = False
+                            break
+                        elif action_started >= workspace_item[0]:
+                            pass
+                        elif workspace_item[0] < label_n_count[1]:
+                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                            workspace.sort()
+                            break
+
+                self.label4.setText("%d.jpg   end_walking" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                self.pushButton_6.setEnabled(True)
+                self.pushButton_8.setEnabled(True)
+                return
+
+        else:
+            if len(objimg) == 0:
+                self.label4.setText("추적실패")
+                return
+            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        workspace.pop(i)
+                        self.listWidget.takeItem(i)
+                    else:
+                        pass
+            else:
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+            workspace.append([label_n_count[1], "walking", objimg])
+            workspace.sort()
+
             for i, workspace_item in enumerate(workspace):
                 if workspace_item[0] == label_n_count[1]:
-                    workspace.pop(i)
-                    self.listWidget.takeItem(i)
-                else:
+                    self.listWidget.insertItem(i, " %d    walking " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                    break
+
+                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                    self.listWidget.insertItem(i, " %d    walking " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                elif workspace_item[0] < label_n_count[1]:
                     pass
-        else:
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
 
-        workspace.append([label_n_count[1], "walking", objimg])
-        workspace.sort()
-
-        for i, workspace_item in enumerate(workspace):
-            if workspace_item[0] == label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   walking" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-                break
-
-            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   walking" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-            elif workspace_item[0] < label_n_count[1]:
-                pass
-
-        self.label4.setText("%d.jpg   walking" % label_n_count[1])
-        pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-        self.label6.setPixmap(pixmap_small)
-        return
+            self.label4.setText("%d.jpg   walking" % label_n_count[1])
+            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+            self.label6.setPixmap(pixmap_small)
+            return
 
     def r_key(self):
         global workspace
+        global action_started
         label_n_count = [copied_text, framecount]
-        if len(objimg) == 0:
-            self.label4.setText("추적실패")
-            return
-        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
-            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        if button_checkable:
+            button5_checked = self.pushButton_6.isChecked()
+            self.pushButton_5.setEnabled(False)
+            self.pushButton_8.setEnabled(False)
+            if button5_checked:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "start_running", objimg])
+                workspace.sort()
+                action_started = label_n_count[1]
+
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_running " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                        break
+
+                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_running " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                    elif workspace_item[0] < label_n_count[1]:
+                        pass
+
+                self.label4.setText("%d.jpg   start_running" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                return
+            else:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "end_running", objimg])
+                workspace.sort()
+
+                check = True
+                while check:
+                    for i, workspace_item in enumerate(workspace):
+                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
+                            self.listWidget.insertItem(i, " %d    end_running " % label_n_count[1])
+                            self.listWidget.setCurrentRow(i)
+                            if len(workspace) - 1 == i:
+                                self.listWidget.scrollToBottom()
+                            check = False
+                            break
+                        elif action_started >= workspace_item[0]:
+                            pass
+                        elif workspace_item[0] < label_n_count[1]:
+                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                            workspace.sort()
+                            break
+
+                self.label4.setText("%d.jpg   end_running" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                self.pushButton_5.setEnabled(True)
+                self.pushButton_8.setEnabled(True)
+                return
+
+        else:
+            if len(objimg) == 0:
+                self.label4.setText("추적실패")
+                return
+            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        workspace.pop(i)
+                        self.listWidget.takeItem(i)
+                    else:
+                        pass
+            else:
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+            workspace.append([label_n_count[1], "running", objimg])
+            workspace.sort()
+
             for i, workspace_item in enumerate(workspace):
                 if workspace_item[0] == label_n_count[1]:
-                    workspace.pop(i)
-                    self.listWidget.takeItem(i)
-                else:
+                    self.listWidget.insertItem(i, " %d    running " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                    break
+
+                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                    self.listWidget.insertItem(i, " %d    running " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                elif workspace_item[0] < label_n_count[1]:
                     pass
-        else:
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
 
-        workspace.append([label_n_count[1], "running", objimg])
-        workspace.sort()
-
-        for i, workspace_item in enumerate(workspace):
-            if workspace_item[0] == label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   running" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-                break
-
-            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   running" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-            elif workspace_item[0] < label_n_count[1]:
-                pass
-
-        self.label4.setText("%d.jpg   running" % label_n_count[1])
-        pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-        self.label6.setPixmap(pixmap_small)
-        return
+            self.label4.setText("%d.jpg   running" % label_n_count[1])
+            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+            self.label6.setPixmap(pixmap_small)
+            return
 
     def s_key(self):
         global workspace
+        global action_started
         label_n_count = [copied_text, framecount]
-        if len(objimg) == 0:
-            self.label4.setText("추적실패")
-            return
-        if os.path.isfile("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1])):
-            os.remove("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
+
+        if button_checkable:
+            button5_checked = self.pushButton_8.isChecked()
+            self.pushButton_5.setEnabled(False)
+            self.pushButton_6.setEnabled(False)
+            if button5_checked:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "start_stop", objimg])
+                workspace.sort()
+                action_started = label_n_count[1]
+
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_stop " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                        break
+
+                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                        self.listWidget.insertItem(i, " %d    start_stop " % label_n_count[1])
+                        self.listWidget.setCurrentRow(i)
+                        if len(workspace) - 1 == i:
+                            self.listWidget.scrollToBottom()
+                    elif workspace_item[0] < label_n_count[1]:
+                        pass
+
+                self.label4.setText("%d.jpg   start_stop" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                return
+            else:
+                if len(objimg) == 0:
+                    self.label4.setText("추적실패")
+                    return
+                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                    for i, workspace_item in enumerate(workspace):
+                        if workspace_item[0] == label_n_count[1]:
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                        else:
+                            pass
+                else:
+                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+                workspace.append([label_n_count[1], "end_stop", objimg])
+                workspace.sort()
+
+                check = True
+                while check:
+                    for i, workspace_item in enumerate(workspace):
+                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
+                            self.listWidget.insertItem(i, " %d    end_stop " % label_n_count[1])
+                            self.listWidget.setCurrentRow(i)
+                            if len(workspace) - 1 == i:
+                                self.listWidget.scrollToBottom()
+                            check = False
+                            break
+                        elif action_started >= workspace_item[0]:
+                            pass
+                        elif workspace_item[0] < label_n_count[1]:
+                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
+                            workspace.pop(i)
+                            self.listWidget.takeItem(i)
+                            workspace.sort()
+                            break
+
+                self.label4.setText("%d.jpg   end_stop" % label_n_count[1])
+                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+                self.label6.setPixmap(pixmap_small)
+                self.pushButton_5.setEnabled(True)
+                self.pushButton_6.setEnabled(True)
+                return
+
+        else:
+            if len(objimg) == 0:
+                self.label4.setText("추적실패")
+                return
+            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
+                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+                for i, workspace_item in enumerate(workspace):
+                    if workspace_item[0] == label_n_count[1]:
+                        workspace.pop(i)
+                        self.listWidget.takeItem(i)
+                    else:
+                        pass
+            else:
+                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
+
+            workspace.append([label_n_count[1], "stop", objimg])
+            workspace.sort()
+
             for i, workspace_item in enumerate(workspace):
                 if workspace_item[0] == label_n_count[1]:
-                    workspace.pop(i)
-                    self.listWidget.takeItem(i)
-                else:
+                    self.listWidget.insertItem(i, " %d    stop " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                    break
+
+                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
+                    self.listWidget.insertItem(i, " %d    stop " % label_n_count[1])
+                    self.listWidget.setCurrentRow(i)
+                    if len(workspace) - 1 == i:
+                        self.listWidget.scrollToBottom()
+                elif workspace_item[0] < label_n_count[1]:
                     pass
-        else:
-            cv2.imwrite("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]), objimg)
 
-        workspace.append([label_n_count[1], "stop", objimg])
-        workspace.sort()
-
-        for i, workspace_item in enumerate(workspace):
-            if workspace_item[0] == label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   stop" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-                break
-
-            if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                self.listWidget.insertItem(i, "%d   stop" % label_n_count[1])
-                if len(workspace)-1 == i:
-                    self.listWidget.scrollToBottom()
-            elif workspace_item[0] < label_n_count[1]:
-                pass
-
-        self.label4.setText("%d.jpg   stop" % label_n_count[1])
-        pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (label_n_count[0], label_n_count[1]))
-        self.label6.setPixmap(pixmap_small)
-        return
+            self.label4.setText("%d.jpg   stop" % label_n_count[1])
+            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
+            self.label6.setPixmap(pixmap_small)
+            return
 
     def space_key(self):
         global pause
@@ -362,6 +662,7 @@ class MyWindow(QMainWindow, form_class):
         global set_speed
         global tracking
         global workspace
+        global writing_dir
 
         if pause:
             pass
@@ -397,11 +698,14 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_11.setEnabled(False)
             self.pushButton_12.setEnabled(False)
             self.pushButton_14.setEnabled(False)
+            self.pushButton_17.setEnabled(False)
+            self.make_json()
             text = None
             end = False
             self.horizontalSlider.setValue(0)
             self.listWidget.clear()
             workspace = []
+            writing_dir = ""
             return
         else:
             if end:
@@ -417,20 +721,9 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_11.setEnabled(False)
                 self.pushButton_12.setEnabled(False)
                 self.pushButton_14.setEnabled(False)
+                self.pushButton_17.setEnabled(False)
                 return
             else:
-                self.pushButton_2.setEnabled(False)
-                self.pushButton_3.setEnabled(True)
-                self.pushButton_4.setEnabled(False)
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_7.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
-                self.pushButton_9.setEnabled(True)
-                self.pushButton_10.setEnabled(True)
-                self.pushButton_11.setEnabled(True)
-                self.pushButton_12.setEnabled(False)
-                self.pushButton_14.setEnabled(True)
                 return
 
     def over(self):
@@ -538,10 +831,58 @@ class MyWindow(QMainWindow, form_class):
 
         json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
         # json_val = json.dumps(json_dict)
-        with open("./captured/obj%d/%d.json" % (copied_text, copied_text), "w") as json_file:
+        with open(writing_dir + "/%d.json" % copied_text, "w") as json_file:
             json.dump(json_dict, json_file)
-
         return
+
+    def item_delete(self):
+        global workspace
+        if self.listWidget.selectedItems():
+            item = workspace.pop(self.listWidget.currentRow())
+            os.remove(writing_dir + "/%d.jpg" % item[0])
+            self.listWidget.takeItem(self.listWidget.currentRow())
+            dummy_pixmap = QPixmap(writing_dir + "/%d.jpg" % item[0])
+            self.label6.setPixmap(dummy_pixmap)
+            self.label4.setText("")
+            return
+        else:
+            return
+
+    def record_action_toggle(self):
+        global button_checkable
+        global toggle_button
+        global workspace
+
+        toggle_button = self.pushButton_17.isChecked()
+        if toggle_button:
+            button_checkable = True
+            self.pushButton_17.setText("Action\nEnd")
+            self.pushButton_5.setCheckable(True)
+            self.pushButton_6.setCheckable(True)
+            self.pushButton_8.setCheckable(True)
+            return
+        else:
+            button5_checked = self.pushButton_5.isChecked()
+            button6_checked = self.pushButton_6.isChecked()
+            button8_checked = self.pushButton_8.isChecked()
+            self.pushButton_17.setText("Action\nStart")
+            if button5_checked:
+                self.pushButton_5.toggle()
+                self.w_key()
+
+            elif button6_checked:
+                self.pushButton_6.toggle()
+                self.r_key()
+
+            elif button8_checked:
+                self.pushButton_8.toggle()
+                self.s_key()
+
+            self.pushButton_5.setCheckable(False)
+            self.pushButton_6.setCheckable(False)
+            self.pushButton_8.setCheckable(False)
+            button_checkable = False
+            return
 
     def track(self):
         tracker.tracks = []
@@ -564,10 +905,23 @@ class MyWindow(QMainWindow, form_class):
         jump_count = None
         global target_changed
         global pause
+        global writing_dir
 
         while True:
+
             if not os.path.isdir('./captured/obj%d' % copied_text):
-                os.mkdir('./captured/obj%d' % copied_text)
+                writing_dir = "./captured/obj%d" % copied_text
+                os.mkdir(writing_dir)
+            else:
+                i = 1
+                while writing_dir == "":
+                    if os.path.isdir('./captured/obj%d_%d' % (copied_text, i)):
+                        i += 1
+                        continue
+                    else:
+                        writing_dir = "./captured/obj%d_%d" % (copied_text, i)
+                        os.mkdir(writing_dir)
+                        break
 
             myobject = text
 
@@ -596,10 +950,10 @@ class MyWindow(QMainWindow, form_class):
             if jumped:
                 if jump_to_frame > 8:
                     vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame - 8)
-                    framecount = jump_to_frame - 8
+                    framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 else:
                     vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    framecount = 0
+                    framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
                 tracker.tracks = []
                 tracker._next_id = 1
@@ -608,13 +962,14 @@ class MyWindow(QMainWindow, form_class):
 
             if jump_count is None:
                 pass
-            elif jump_count <= 10:
+            elif jump_count <= 8:
                 jump_count += 1
                 self.pushButton_5.setEnabled(False)
                 self.pushButton_6.setEnabled(False)
                 self.pushButton_8.setEnabled(False)
                 self.pushButton_9.setEnabled(False)
-            elif jump_count > 10:
+                self.pushButton_17.setEnabled(False)
+            elif jump_count > 8:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 self.space_key()
@@ -622,6 +977,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_6.setEnabled(True)
                 self.pushButton_8.setEnabled(True)
                 self.pushButton_9.setEnabled(True)
+                self.pushButton_17.setEnabled(True)
                 jump_count = None
 
             if set_speed > 1:
@@ -648,6 +1004,7 @@ class MyWindow(QMainWindow, form_class):
                             self.pushButton_5.setEnabled(False)
                             self.pushButton_6.setEnabled(False)
                             self.pushButton_8.setEnabled(False)
+                            self.pushButton_17.setEnabled(False)
 
                         time.sleep(0.005)
                         if target_changed == 1 or target_changed == 2:
@@ -689,6 +1046,7 @@ class MyWindow(QMainWindow, form_class):
                     self.pushButton_5.setEnabled(False)
                     self.pushButton_6.setEnabled(False)
                     self.pushButton_8.setEnabled(False)
+                    self.pushButton_17.setEnabled(False)
 
                 time.sleep(0.005)
                 if target_changed == 1 or target_changed == 2:
@@ -709,6 +1067,7 @@ class MyWindow(QMainWindow, form_class):
                 continue
 
             if jumped:
+                # vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 continue
 
             original_image = img
@@ -768,13 +1127,18 @@ class MyWindow(QMainWindow, form_class):
             if len(tracked_bboxes) != 0:
 
                 if jump_count is None:
-                    self.pushButton_5.setEnabled(True)
-                    self.pushButton_6.setEnabled(True)
+                    if button_checkable:
+                        pass
+                    else:
+                        self.pushButton_5.setEnabled(True)
+                        self.pushButton_6.setEnabled(True)
+                        self.pushButton_8.setEnabled(True)
+
                     self.pushButton_7.setEnabled(True)
-                    self.pushButton_8.setEnabled(True)
                     self.pushButton_9.setEnabled(True)
                     self.pushButton_10.setEnabled(True)
                     self.pushButton_11.setEnabled(True)
+                    self.pushButton_17.setEnabled(True)
                 else:
                     pass
                 self.pushButton_14.setEnabled(True)
@@ -792,11 +1156,14 @@ class MyWindow(QMainWindow, form_class):
                     self.pushButton_5.setEnabled(False)
                     self.pushButton_6.setEnabled(False)
                     self.pushButton_8.setEnabled(False)
+                    self.pushButton_17.setEnabled(False)
 
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
                     image = cv2.putText(image, " Tracking Fail", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
+                    image = cv2.putText(image, " %d frame" % vid.get(cv2.CAP_PROP_POS_FRAMES), (180, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (0, 0, 0), 2)
                     h, w, ch = image.shape
                     bytesPerLine = ch * w
                     qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
@@ -821,6 +1188,8 @@ class MyWindow(QMainWindow, form_class):
                                         1, (0, 0, 255), 2)
                     image = cv2.putText(image, " Tracking Success", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 128, 0), 2)
+                    image = cv2.putText(image, " %d frame" % vid.get(cv2.CAP_PROP_POS_FRAMES), (180, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                                        1, (0, 0, 0), 2)
                     image = draw_bbox(image, copied_tracked_bboxes, CLASSES=CLASSES, Text_colors=(255, 255, 255),
                                           rectangle_colors=(0, 128, 0), tracking=True)
                     h, w, ch = image.shape
