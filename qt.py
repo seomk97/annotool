@@ -4,10 +4,8 @@ from PyQt5.QtWidgets import *
 from PyQt5 import uic
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-# from PyQt5 import QtCore, QtGui
 from main import *
 import threading
-# from queue import Queue
 import json
 
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
@@ -16,7 +14,6 @@ video_path = []
 text = None
 copied_text = None
 framecount = 0
-handler = True
 end = False
 flush = False
 pause = False
@@ -26,19 +23,17 @@ target_only_view = False
 qimg_1 = 0
 qimg_2 = 0
 tracking = False
-box_of_frame = []
-framejump = False
+slider_moved = False
 jump_to_frame = 0
 workspace = []
-tracks_temp = []
 jumped = False
 target_changed = 0
 writing_dir = ""
-button_checkable = False
-toggle_button = False
-action_started = 0
+button_checkable = False  # w,r,s is_checkable
+toggle_button = False  # action record toggle button is checked?
+action_started = 0  # action record started frame
 
-YoloV3 = yolo
+YoloV4 = yolo  # yolo : tensorflow weight transformed from darknet weight at main.py
 score_threshold = 0.3
 iou_threshold = 0.1
 CLASSES = YOLO_COCO_CLASSES
@@ -227,11 +222,8 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_11.setEnabled(True)
         self.pushButton_14.setEnabled(True)
         self.pushButton_17.setEnabled(True)
-        # th2 = threading.Thread(target=self.vidload)
-        # th2.setDaemon(True)
         th = threading.Thread(target=self.track)
         th.setDaemon(True)
-        # th2.start()
         th.start()
         return
 
@@ -776,7 +768,6 @@ class MyWindow(QMainWindow, form_class):
         if not os.path.isdir('./captured/'):
             QMessageBox.about(self, "폴더 없음", "captured 폴더가 생성되지 않았습니다")
         else:
-            # subprocess.Popen(['xdg-open', './captured/'])
             os.system('xdg-open "%s"' % './captured/')
         return
 
@@ -792,23 +783,17 @@ class MyWindow(QMainWindow, form_class):
             return
 
     def slider_moved(self):
-        if tracking and not pause:
-            return
-        global framejump, jump_to_frame
-        framejump = True
+        global slider_moved, jump_to_frame
+        slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
 
     def slider_released(self):
-        if tracking and not pause:
-            return
-        global framejump, jump_to_frame, target_changed
-        framejump = True
+        global slider_moved, jump_to_frame, target_changed
+        slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
         target_changed = 1
 
     def item_double_clicked(self):
-        # global tracking
-        # tracking = False
         global jumped, jump_to_frame
         if pause:
             self.space_key()
@@ -820,10 +805,7 @@ class MyWindow(QMainWindow, form_class):
         pixmap_small = QPixmap(writing_dir + "/%d.jpg" % workspace[item_index][0])
         self.label6.setPixmap(pixmap_small)
         self.label4.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
-        # self.horizontalSlider.setValue(workspace[item_index][0])
-        # self.slider()
         jumped = True
-        # tracking = True
         return
 
     def make_json(self):
@@ -897,34 +879,38 @@ class MyWindow(QMainWindow, form_class):
         tracker.tracks = []
         tracker._next_id = 1  # 트래커초기화
 
-        vid = cv2.VideoCapture(video_path[0])
+        vid = cv2.VideoCapture(video_path[0]) # 비디오 불러오기
 
-        Track_only = ['person']
-        global framecount, flag
+        Track_only = ['person'] # yolo class중에 person만 bounding box 형성
+        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir
+
+        # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
+        # pause_flag = instant pause handler for double click loop event
+        # qimg_1, qimg_2 = 각각 오리지날 이미지에 대상만 박스처리, 대상만 박스처리한것에 나머지 오브젝트도 박스처리
+        # tracking = tracking thread가 돌아가고 있을때 오브젝트 수정을 위한 변수
+        # slider_moved = pause 도중 슬라이더가 움직였을 때 메인루프 멈춘상태에서 vid.read로 navigating 용도 bool 변수
+        # objimg = 오브젝트 이미지 저장
+        # jumped = 리스트 아이템 더블클릭이 된 이벤트 변수
+        # target_changed = 타겟변경이 이루어진 이벤트 (기본 0, 변경시 1 전프레임으로 돌아가서 타겟변경후 한번 prediction 후 pause 유지)
+        # pause = pause event handler
+        # writing_dir = object writing directory "./captured/object%d_%d"
+
         framecount = 0.0
-        times = []
-        global handler
-        global qimg_1, qimg_2
-        global tracking
+        times = []  # for calculating fps
         tracking = True
-        global framejump
-        global box_of_frame
-        global objimg
-        global jumped
-        jump_count = None
-        global target_changed
-        global pause
-        global writing_dir
-        flag = 0
+        jump_count = None  # count for inner loop (list double click event)
+        pause_flag = 0
 
         while True:
+
+            t1 = time.time()
 
             if not os.path.isdir('./captured/obj%d' % copied_text):
                 writing_dir = "./captured/obj%d" % copied_text
                 os.mkdir(writing_dir)
             else:
                 i = 1
-                while writing_dir == "":
+                while writing_dir == "":  # object changed while tracking, writing_dir becomes "" and perform loop once
                     if os.path.isdir('./captured/obj%d_%d' % (copied_text, i)):
                         i += 1
                         continue
@@ -941,11 +927,7 @@ class MyWindow(QMainWindow, form_class):
                 ret, img = vid.read()
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
-            if target_changed == 2:
-                target_changed = 0
-                pass
-
-            if not ret:
+            if not ret:  # video end event
                 self.over()
                 return
             else:
@@ -959,9 +941,9 @@ class MyWindow(QMainWindow, form_class):
                     vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
-                tracker.tracks = []
-                tracker._next_id = 1
-                jump_count = 0
+                tracker.tracks = []  # tracker initialize
+                tracker._next_id = 1  # tracker initialize
+                jump_count = 0  # defualt = None, becomes 0 when jumped
                 jumped = False
 
             if jump_count is None:
@@ -973,7 +955,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_8.setEnabled(False)
                 self.pushButton_9.setEnabled(False)
                 self.pushButton_17.setEnabled(False)
-                flag = 1
+                pause_flag = 1
                 pass
             elif jump_count > 8:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
@@ -985,14 +967,14 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_9.setEnabled(True)
                 self.pushButton_17.setEnabled(True)
                 jump_count = None
-                flag = 0
+                pause_flag = 0
 
             if set_speed > 1:
                 if jump_count is not None:
                     pass
                 else:
                     while pause:
-                        if framejump:
+                        if slider_moved:
                             vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
                             tracker.tracks = []
                             tracker._next_id = 1
@@ -1003,7 +985,7 @@ class MyWindow(QMainWindow, form_class):
                             self.label2.setPixmap(QPixmap.fromImage(qimg_3))
                             framecount = jump_to_frame
                             self.pushButton_14.setEnabled(True)
-                            framejump = False
+                            slider_moved = False
                         else:
                             pass
 
@@ -1018,25 +1000,25 @@ class MyWindow(QMainWindow, form_class):
                             break
                         if jumped:
                             break
-                        if flag:
+                        if pause_flag:
                             break
                         if flush:
                             return
                         if not pause:
-                            # self.pushButton_5.setEnabled(True)
-                            # self.pushButton_6.setEnabled(True)
-                            # self.pushButton_8.setEnabled(True)
                             break
 
-                    for i in range(set_speed - 1):
-                        ret, img = vid.read()
-                        self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
+                    if target_changed == 1:
+                        pass
+                    else:
+                        for i in range(set_speed - 1):
+                            ret, img = vid.read()
+                            self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
 
             else:
                 pass
 
             while pause:
-                if framejump:
+                if slider_moved:
                     vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
                     tracker.tracks = []
                     tracker._next_id = 1
@@ -1047,7 +1029,7 @@ class MyWindow(QMainWindow, form_class):
                     self.label2.setPixmap(QPixmap.fromImage(qimg_3))
                     framecount = jump_to_frame
                     self.pushButton_14.setEnabled(True)
-                    framejump = False
+                    slider_moved = False
                 else:
                     pass
 
@@ -1062,25 +1044,21 @@ class MyWindow(QMainWindow, form_class):
                     break
                 if jumped:
                     break
-                if flag:
+                if pause_flag:
                     break
                 if flush:
                     return
                 if not pause:
-                    # self.pushButton_5.setEnabled(True)
-                    # self.pushButton_6.setEnabled(True)
-                    # self.pushButton_8.setEnabled(True)
                     break
 
             if target_changed == 1:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 ret, img = vid.read()
                 myobject = text
-                target_changed = 2
+                target_changed = 0
                 pass
 
             if jumped:
-                # vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 continue
 
             original_image = img
@@ -1089,8 +1067,7 @@ class MyWindow(QMainWindow, form_class):
             image_data = image_preprocess(np.copy(original_image), [input_size, input_size])  # 인풋 프레임 전처리
             image_data = tf.expand_dims(image_data, 0)
 
-            t1 = time.time()
-            pred_bbox = YoloV3.predict(image_data)
+            pred_bbox = YoloV4.predict(image_data)
 
             pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
             pred_bbox = tf.concat(pred_bbox, axis=0)
@@ -1120,11 +1097,6 @@ class MyWindow(QMainWindow, form_class):
             tracker.predict()
             tracker.update(detections)
 
-            t2 = time.time()
-            times.append(t2 - t1)
-            times = times[-20:]
-            fps = 1000 / (sum(times) / len(times) * 1000)
-
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
@@ -1137,10 +1109,15 @@ class MyWindow(QMainWindow, form_class):
                 tracked_bboxes.append(bbox.tolist() + [tracking_id,
                                                        index])  # Structure data, that we could use it with our draw_bbox function
 
+                t2 = time.time()
+                times.append(t2 - t1)
+                times = times[-20:]
+                fps = 1000 / (sum(times) / len(times) * 1000)
+
             if len(tracked_bboxes) != 0:
 
                 if jump_count is None:
-                    if button_checkable:
+                    if button_checkable:  # 토글키 활성시 사용불가능해야함
                         pass
                     else:
                         self.pushButton_5.setEnabled(True)
@@ -1195,7 +1172,7 @@ class MyWindow(QMainWindow, form_class):
                     y1 = int(copied_tracked_bboxes[0][1])
                     x2 = int(copied_tracked_bboxes[0][2])
                     y2 = int(copied_tracked_bboxes[0][3])
-                    objimg = np.array(original_image[y1-5:y2+5, x1-5:x2+5])
+                    objimg = np.array(original_image[y1-8:y2+8, x1-8:x2+8])
 
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
@@ -1217,12 +1194,7 @@ class MyWindow(QMainWindow, form_class):
                     else:
                         self.label2.setPixmap(QPixmap.fromImage(qimg_1))
 
-                times_2 = []
-                t3 = time.time()
-                times_2.append(t3 - t1)
-                times_2 = times_2[-20:]
-                fps2 = int(1000 / (sum(times_2) / len(times_2) * 1000))
-
+                fps2 = int(fps)
                 print(framecount, ", fps:", fps2)
 
             else:
