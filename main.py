@@ -12,7 +12,7 @@ from pjtlibs.deep_sort.tracker import Tracker
 from pjtlibs.deep_sort import generate_detections as gdet
 
 YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # coco 클래스 경로
-input_size = 608  # 인풋 사이즈
+input_size = 512  # 인풋 사이즈
 Darknet_weights = "./pjtlibs/yolov4.weights"  # your darknet weight path
 
 yolo = Create_Yolo(input_size=input_size)  # 텐서플로우 네트워크 모델

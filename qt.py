@@ -99,6 +99,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_14.setShortcut(Qt.Key.Key_Tab)
         self.pushButton_15.setShortcut(Qt.Key.Key_Insert)
         self.pushButton_16.setShortcut(Qt.Key.Key_Delete)
+        self.pushButton_17.setShortcut('b')
 
     def file_load(self):
         global video_path
@@ -241,6 +242,7 @@ class MyWindow(QMainWindow, form_class):
 
         if button_checkable:
             button5_checked = self.pushButton_5.isChecked()
+            self.pushButton_5.setEnabled(False)
             self.pushButton_6.setEnabled(False)
             self.pushButton_8.setEnabled(False)
             if button5_checked:
@@ -324,6 +326,7 @@ class MyWindow(QMainWindow, form_class):
                 self.label4.setText("%d.jpg   end_walking" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
                 self.label6.setPixmap(pixmap_small)
+                self.pushButton_5.setEnabled(True)
                 self.pushButton_6.setEnabled(True)
                 self.pushButton_8.setEnabled(True)
                 return
@@ -376,6 +379,7 @@ class MyWindow(QMainWindow, form_class):
         if button_checkable:
             button5_checked = self.pushButton_6.isChecked()
             self.pushButton_5.setEnabled(False)
+            self.pushButton_6.setEnabled(False)
             self.pushButton_8.setEnabled(False)
             if button5_checked:
                 if len(objimg) == 0:
@@ -459,6 +463,7 @@ class MyWindow(QMainWindow, form_class):
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
                 self.label6.setPixmap(pixmap_small)
                 self.pushButton_5.setEnabled(True)
+                self.pushButton_6.setEnabled(True)
                 self.pushButton_8.setEnabled(True)
                 return
 
@@ -511,6 +516,7 @@ class MyWindow(QMainWindow, form_class):
             button5_checked = self.pushButton_8.isChecked()
             self.pushButton_5.setEnabled(False)
             self.pushButton_6.setEnabled(False)
+            self.pushButton_8.setEnabled(False)
             if button5_checked:
                 if len(objimg) == 0:
                     self.label4.setText("추적실패")
@@ -594,6 +600,7 @@ class MyWindow(QMainWindow, form_class):
                 self.label6.setPixmap(pixmap_small)
                 self.pushButton_5.setEnabled(True)
                 self.pushButton_6.setEnabled(True)
+                self.pushButton_8.setEnabled(True)
                 return
 
         else:
@@ -810,10 +817,10 @@ class MyWindow(QMainWindow, form_class):
         item_index = self.listWidget.currentRow()
         self.horizontalSlider.setValue(workspace[item_index][0])
         jump_to_frame = self.horizontalSlider.value()
-        pixmap_small = QPixmap("./captured/obj%d/%d.jpg" % (copied_text, workspace[item_index][0]))
+        pixmap_small = QPixmap(writing_dir + "/%d.jpg" % workspace[item_index][0])
         self.label6.setPixmap(pixmap_small)
         self.label4.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
-        self.horizontalSlider.setValue(workspace[item_index][0])
+        # self.horizontalSlider.setValue(workspace[item_index][0])
         # self.slider()
         jumped = True
         # tracking = True
@@ -857,6 +864,7 @@ class MyWindow(QMainWindow, form_class):
         if toggle_button:
             button_checkable = True
             self.pushButton_17.setText("Action\nEnd")
+            self.pushButton_17.setShortcut('b')
             self.pushButton_5.setCheckable(True)
             self.pushButton_6.setCheckable(True)
             self.pushButton_8.setCheckable(True)
@@ -866,6 +874,7 @@ class MyWindow(QMainWindow, form_class):
             button6_checked = self.pushButton_6.isChecked()
             button8_checked = self.pushButton_8.isChecked()
             self.pushButton_17.setText("Action\nStart")
+            self.pushButton_17.setShortcut('b')
             if button5_checked:
                 self.pushButton_5.toggle()
                 self.w_key()
@@ -891,7 +900,7 @@ class MyWindow(QMainWindow, form_class):
         vid = cv2.VideoCapture(video_path[0])
 
         Track_only = ['person']
-        global framecount
+        global framecount, flag
         framecount = 0.0
         times = []
         global handler
@@ -906,6 +915,7 @@ class MyWindow(QMainWindow, form_class):
         global target_changed
         global pause
         global writing_dir
+        flag = 0
 
         while True:
 
@@ -931,14 +941,8 @@ class MyWindow(QMainWindow, form_class):
                 ret, img = vid.read()
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
-            if target_changed == 3:
-                target_changed = 0
-                vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
-                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
-                self.space_key()
-
             if target_changed == 2:
-                target_changed = 3
+                target_changed = 0
                 pass
 
             if not ret:
@@ -969,6 +973,8 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_8.setEnabled(False)
                 self.pushButton_9.setEnabled(False)
                 self.pushButton_17.setEnabled(False)
+                flag = 1
+                pass
             elif jump_count > 8:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
@@ -979,6 +985,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_9.setEnabled(True)
                 self.pushButton_17.setEnabled(True)
                 jump_count = None
+                flag = 0
 
             if set_speed > 1:
                 if jump_count is not None:
@@ -1007,9 +1014,11 @@ class MyWindow(QMainWindow, form_class):
                             self.pushButton_17.setEnabled(False)
 
                         time.sleep(0.005)
-                        if target_changed == 1 or target_changed == 2:
-                            self.space_key()
+                        if target_changed == 1:
+                            break
                         if jumped:
+                            break
+                        if flag:
                             break
                         if flush:
                             return
@@ -1049,9 +1058,11 @@ class MyWindow(QMainWindow, form_class):
                     self.pushButton_17.setEnabled(False)
 
                 time.sleep(0.005)
-                if target_changed == 1 or target_changed == 2:
-                    self.space_key()
+                if target_changed == 1:
+                    break
                 if jumped:
+                    break
+                if flag:
                     break
                 if flush:
                     return
@@ -1063,8 +1074,10 @@ class MyWindow(QMainWindow, form_class):
 
             if target_changed == 1:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
+                ret, img = vid.read()
+                myobject = text
                 target_changed = 2
-                continue
+                pass
 
             if jumped:
                 # vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
