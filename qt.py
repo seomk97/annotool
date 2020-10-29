@@ -725,7 +725,7 @@ class MyWindow(QMainWindow, form_class):
             else:
                 return
 
-    def over(self):
+    def video_end(self):
         global end
         global set_speed
         global tracking
@@ -885,20 +885,20 @@ class MyWindow(QMainWindow, form_class):
         global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir
 
         # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
-        # pause_flag = instant pause handler for double click loop event
+        # pause_flag = temporal pause handler for listwidget item double click loop event
         # qimg_1, qimg_2 = 각각 오리지날 이미지에 대상만 박스처리, 대상만 박스처리한것에 나머지 오브젝트도 박스처리
         # tracking = tracking thread가 돌아가고 있을때 오브젝트 수정을 위한 변수
         # slider_moved = pause 도중 슬라이더가 움직였을 때 메인루프 멈춘상태에서 vid.read로 navigating 용도 bool 변수
         # objimg = 오브젝트 이미지 저장
         # jumped = 리스트 아이템 더블클릭이 된 이벤트 변수
         # target_changed = 타겟변경이 이루어진 이벤트 (기본 0, 변경시 1 전프레임으로 돌아가서 타겟변경후 한번 prediction 후 pause 유지)
-        # pause = pause event handler
+        # pause = play/pause event handler
         # writing_dir = object writing directory "./captured/object%d_%d"
 
         framecount = 0.0
         times = []  # for calculating fps
         tracking = True
-        jump_count = None  # count for inner loop (list double click event)
+        jump_count = None  # count for inner loop (listwidget item double click event)
         pause_flag = 0
 
         while True:
@@ -928,7 +928,7 @@ class MyWindow(QMainWindow, form_class):
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
             if not ret:  # video end event
-                self.over()
+                self.video_end()
                 return
             else:
                 pass
