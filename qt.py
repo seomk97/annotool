@@ -222,6 +222,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_11.setEnabled(True)
         self.pushButton_14.setEnabled(True)
         self.pushButton_17.setEnabled(True)
+        self.horizontalSlider.setEnabled(False)
         th = threading.Thread(target=self.track)
         th.setDaemon(True)
         th.start()
