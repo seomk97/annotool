@@ -1,3 +1,23 @@
+# @inproceedings{Wojke2017simple,
+#   title={Simple Online and Realtime Tracking with a Deep Association Metric},
+#   author={Wojke, Nicolai and Bewley, Alex and Paulus, Dietrich},
+#   booktitle={2017 IEEE International Conference on Image Processing (ICIP)},
+#   year={2017},
+#   pages={3645--3649},
+#   organization={IEEE},
+#   doi={10.1109/ICIP.2017.8296962}
+# }
+#
+# @inproceedings{Wojke2018deep,
+#   title={Deep Cosine Metric Learning for Person Re-identification},
+#   author={Wojke, Nicolai and Bewley, Alex},
+#   booktitle={2018 IEEE Winter Conference on Applications of Computer Vision (WACV)},
+#   year={2018},
+#   pages={748--756},
+#   organization={IEEE},
+#   doi={10.1109/WACV.2018.00087}
+# }
+
 import sys
 import time
 from PyQt5.QtWidgets import *
@@ -33,6 +53,10 @@ button_checkable = False  # w,r,s is_checkable
 toggle_button = False  # action record toggle button is checked?
 action_started = 0  # action record started frame
 
+button5_checked = False
+button6_checked = False
+button8_checked = False
+
 YoloV4 = yolo  # yolo : tensorflow weight transformed from darknet weight at main.py
 score_threshold = 0.3
 iou_threshold = 0.1
@@ -60,10 +84,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_2.clicked.connect(self.start)
         self.pushButton_3.clicked.connect(self.object_select)
         self.pushButton_4.clicked.connect(self.my_thread)
-        self.pushButton_5.clicked.connect(self.w_key)
-        self.pushButton_6.clicked.connect(self.r_key)
         self.pushButton_7.clicked.connect(self.q_key)
-        self.pushButton_8.clicked.connect(self.s_key)
         self.pushButton_9.clicked.connect(self.space_key)
         self.pushButton_10.clicked.connect(self.target_change)
         self.pushButton_11.clicked.connect(self.speed_up)
@@ -78,21 +99,18 @@ class MyWindow(QMainWindow, form_class):
         self.listWidget.itemDoubleClicked.connect(self.item_double_clicked)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
-        self.pushButton.setShortcut('l')
-        self.pushButton_2.setShortcut('a')
+        self.pushButton.setShortcut('f')
+        self.pushButton_2.setShortcut('l')
         self.pushButton_3.setShortcut('o')
         self.pushButton_4.setShortcut('t')
-        self.pushButton_5.setShortcut('w')
-        self.pushButton_6.setShortcut('r')
         self.pushButton_7.setShortcut('q')
-        self.pushButton_8.setShortcut('s')
         self.pushButton_9.setShortcut(Qt.Key.Key_Space)
         self.pushButton_10.setShortcut('c')
         self.pushButton_11.setShortcut(Qt.Key.Key_Right)
         self.pushButton_12.setShortcut(Qt.Key.Key_Left)
         self.pushButton_13.setShortcut(Qt.Key.Key_Home)
         self.pushButton_14.setShortcut(Qt.Key.Key_Tab)
-        self.pushButton_15.setShortcut(Qt.Key.Key_Insert)
+        self.pushButton_15.setShortcut('j')
         self.pushButton_16.setShortcut(Qt.Key.Key_Delete)
         self.pushButton_17.setShortcut('b')
 
@@ -234,13 +252,9 @@ class MyWindow(QMainWindow, form_class):
         label_n_count = [copied_text, framecount]
 
         if button_checkable:
-            button5_checked = self.pushButton_5.isChecked()
-            self.pushButton_5.setEnabled(False)
-            self.pushButton_6.setEnabled(False)
-            self.pushButton_8.setEnabled(False)
             if button5_checked:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -280,7 +294,7 @@ class MyWindow(QMainWindow, form_class):
                 return
             else:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -319,14 +333,11 @@ class MyWindow(QMainWindow, form_class):
                 self.label4.setText("%d.jpg   end_walking" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
                 self.label6.setPixmap(pixmap_small)
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
                 return
 
         else:
             if len(objimg) == 0:
-                self.label4.setText("추적실패")
+                self.label4.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -370,13 +381,9 @@ class MyWindow(QMainWindow, form_class):
         label_n_count = [copied_text, framecount]
 
         if button_checkable:
-            button5_checked = self.pushButton_6.isChecked()
-            self.pushButton_5.setEnabled(False)
-            self.pushButton_6.setEnabled(False)
-            self.pushButton_8.setEnabled(False)
-            if button5_checked:
+            if button6_checked:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -416,7 +423,7 @@ class MyWindow(QMainWindow, form_class):
                 return
             else:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -455,14 +462,11 @@ class MyWindow(QMainWindow, form_class):
                 self.label4.setText("%d.jpg   end_running" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
                 self.label6.setPixmap(pixmap_small)
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
                 return
 
         else:
             if len(objimg) == 0:
-                self.label4.setText("추적실패")
+                self.label4.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -506,13 +510,9 @@ class MyWindow(QMainWindow, form_class):
         label_n_count = [copied_text, framecount]
 
         if button_checkable:
-            button5_checked = self.pushButton_8.isChecked()
-            self.pushButton_5.setEnabled(False)
-            self.pushButton_6.setEnabled(False)
-            self.pushButton_8.setEnabled(False)
-            if button5_checked:
+            if button8_checked:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -552,7 +552,7 @@ class MyWindow(QMainWindow, form_class):
                 return
             else:
                 if len(objimg) == 0:
-                    self.label4.setText("추적실패")
+                    self.label4.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -591,14 +591,11 @@ class MyWindow(QMainWindow, form_class):
                 self.label4.setText("%d.jpg   end_stop" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
                 self.label6.setPixmap(pixmap_small)
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
                 return
 
         else:
             if len(objimg) == 0:
-                self.label4.setText("추적실패")
+                self.label4.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -669,16 +666,16 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.space_key()
 
-        reply = QMessageBox.question(self, 'Message', '초기화합니까?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, 'Reset', 'Are you sure to reset?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
             tracking = False
             flush = True
             set_speed = 1
-            self.label.setText("Video Path")
+            self.label.setText("File Path")
             self.label3.setText("None")
             self.label5.setText("None")
-            self.label7.setText("배속  x%d 배" % set_speed)
+            self.label7.setText("speed  x%d " % set_speed)
             self.label4.setText("")
             if os.path.isfile("./captured/frame.jpg"):
                 os.remove("./captured/frame.jpg")
@@ -689,10 +686,7 @@ class MyWindow(QMainWindow, form_class):
             self.pushButton_2.setEnabled(False)
             self.pushButton_3.setEnabled(False)
             self.pushButton_4.setEnabled(False)
-            self.pushButton_5.setEnabled(False)
-            self.pushButton_6.setEnabled(False)
             self.pushButton_7.setEnabled(False)
-            self.pushButton_8.setEnabled(False)
             self.pushButton_9.setEnabled(False)
             self.pushButton_10.setEnabled(False)
             self.pushButton_11.setEnabled(False)
@@ -712,10 +706,7 @@ class MyWindow(QMainWindow, form_class):
                 self.pushButton_2.setEnabled(False)
                 self.pushButton_3.setEnabled(False)
                 self.pushButton_4.setEnabled(False)
-                self.pushButton_5.setEnabled(False)
-                self.pushButton_6.setEnabled(False)
                 self.pushButton_7.setEnabled(True)
-                self.pushButton_8.setEnabled(False)
                 self.pushButton_9.setEnabled(False)
                 self.pushButton_10.setEnabled(False)
                 self.pushButton_11.setEnabled(False)
@@ -737,10 +728,7 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_2.setEnabled(False)
         self.pushButton_3.setEnabled(False)
         self.pushButton_4.setEnabled(False)
-        self.pushButton_5.setEnabled(False)
-        self.pushButton_6.setEnabled(False)
         self.pushButton_7.setEnabled(True)
-        self.pushButton_8.setEnabled(False)
         self.pushButton_9.setEnabled(False)
         self.pushButton_10.setEnabled(False)
         self.pushButton_11.setEnabled(False)
@@ -751,18 +739,18 @@ class MyWindow(QMainWindow, form_class):
         self.pushButton_12.setEnabled(True)
         global set_speed
         set_speed += 1
-        self.label7.setText("배속  x%d 배" % set_speed)
+        self.label7.setText("speed  x%d " % set_speed)
         return
 
     def speed_down(self):
         global set_speed
         if set_speed == 2:
             set_speed = 1
-            self.label7.setText("배속  x%d 배" % set_speed)
+            self.label7.setText("speed  x%d " % set_speed)
             self.pushButton_12.setEnabled(False)
             return
         set_speed -= 1
-        self.label7.setText("배속  x%d 배" % set_speed)
+        self.label7.setText("speed  x%d " % set_speed)
         return
 
     def open_folder(self):
@@ -777,6 +765,7 @@ class MyWindow(QMainWindow, form_class):
         if not target_only_view:
             target_only_view = True
             self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+
             return
         else:
             target_only_view = False
@@ -816,11 +805,13 @@ class MyWindow(QMainWindow, form_class):
             for i, workspace_things in enumerate(workspace):
                 workspace_frame_list.append(int(workspace_things[0]))
                 workspace_label_list.append(workspace_things[1])
+            if not pause:
+                self.space_key()
+            QMessageBox.about(self, "Make json", "Save complete")
         else:
             return
 
         json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
-        # json_val = json.dumps(json_dict)
         with open(writing_dir + "/%d.json" % copied_text, "w") as json_file:
             json.dump(json_dict, json_file)
         return
@@ -842,39 +833,61 @@ class MyWindow(QMainWindow, form_class):
         global button_checkable
         global toggle_button
         global workspace
+        global button5_checked, button6_checked, button8_checked
 
         toggle_button = self.pushButton_17.isChecked()
         if toggle_button:
             button_checkable = True
-            self.pushButton_17.setText("Action\nEnd")
+            self.pushButton_17.setText("Action End (B)")
             self.pushButton_17.setShortcut('b')
-            self.pushButton_5.setCheckable(True)
-            self.pushButton_6.setCheckable(True)
-            self.pushButton_8.setCheckable(True)
             return
         else:
-            button5_checked = self.pushButton_5.isChecked()
-            button6_checked = self.pushButton_6.isChecked()
-            button8_checked = self.pushButton_8.isChecked()
-            self.pushButton_17.setText("Action\nStart")
+            self.pushButton_17.setText("Action Start (B)")
             self.pushButton_17.setShortcut('b')
             if button5_checked:
-                self.pushButton_5.toggle()
+                button5_checked = False
                 self.w_key()
 
             elif button6_checked:
-                self.pushButton_6.toggle()
+                button6_checked = False
                 self.r_key()
 
             elif button8_checked:
-                self.pushButton_8.toggle()
+                button8_checked = False
                 self.s_key()
 
-            self.pushButton_5.setCheckable(False)
-            self.pushButton_6.setCheckable(False)
-            self.pushButton_8.setCheckable(False)
             button_checkable = False
             return
+
+    def keyPressEvent(self, e):
+        global button5_checked, button6_checked, button8_checked
+        if e.key() == Qt.Key_W:
+            if button_checkable:
+                if not button5_checked and not button6_checked and not button8_checked:
+                    button5_checked = True
+                else:
+                    return
+                self.w_key()
+            else:
+                self.w_key()
+        elif e.key() == Qt.Key_R:
+            if button_checkable:
+                if not button5_checked and not button6_checked and not button8_checked:
+                    button6_checked = True
+                else:
+                    return
+                self.r_key()
+            else:
+                self.r_key()
+        elif e.key() == Qt.Key_S:
+            if button_checkable:
+                if not button5_checked and not button6_checked and not button8_checked:
+                    button8_checked = True
+                else:
+                    return
+                self.s_key()
+            else:
+                self.s_key()
 
     def track(self):
         tracker.tracks = []
@@ -951,9 +964,6 @@ class MyWindow(QMainWindow, form_class):
                 pass
             elif jump_count <= 8:
                 jump_count += 1
-                self.pushButton_5.setEnabled(False)
-                self.pushButton_6.setEnabled(False)
-                self.pushButton_8.setEnabled(False)
                 self.pushButton_9.setEnabled(False)
                 self.pushButton_17.setEnabled(False)
                 pause_flag = 1
@@ -962,9 +972,6 @@ class MyWindow(QMainWindow, form_class):
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 self.space_key()
-                self.pushButton_5.setEnabled(True)
-                self.pushButton_6.setEnabled(True)
-                self.pushButton_8.setEnabled(True)
                 self.pushButton_9.setEnabled(True)
                 self.pushButton_17.setEnabled(True)
                 jump_count = None
@@ -991,9 +998,6 @@ class MyWindow(QMainWindow, form_class):
                             pass
 
                         if not copied_tracked_bboxes:
-                            self.pushButton_5.setEnabled(False)
-                            self.pushButton_6.setEnabled(False)
-                            self.pushButton_8.setEnabled(False)
                             self.pushButton_17.setEnabled(False)
 
                         time.sleep(0.005)
@@ -1035,9 +1039,6 @@ class MyWindow(QMainWindow, form_class):
                     pass
 
                 if not copied_tracked_bboxes:
-                    self.pushButton_5.setEnabled(False)
-                    self.pushButton_6.setEnabled(False)
-                    self.pushButton_8.setEnabled(False)
                     self.pushButton_17.setEnabled(False)
 
                 time.sleep(0.005)
@@ -1118,13 +1119,6 @@ class MyWindow(QMainWindow, form_class):
             if len(tracked_bboxes) != 0:
 
                 if jump_count is None:
-                    if button_checkable:  # 토글키 활성시 사용불가능해야함
-                        pass
-                    else:
-                        self.pushButton_5.setEnabled(True)
-                        self.pushButton_6.setEnabled(True)
-                        self.pushButton_8.setEnabled(True)
-
                     self.pushButton_7.setEnabled(True)
                     self.pushButton_9.setEnabled(True)
                     self.pushButton_10.setEnabled(True)
@@ -1144,9 +1138,6 @@ class MyWindow(QMainWindow, form_class):
                         pass
 
                 if not copied_tracked_bboxes:
-                    self.pushButton_5.setEnabled(False)
-                    self.pushButton_6.setEnabled(False)
-                    self.pushButton_8.setEnabled(False)
                     self.pushButton_17.setEnabled(False)
 
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,

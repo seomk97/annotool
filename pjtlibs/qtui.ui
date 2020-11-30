@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1316</width>
-    <height>752</height>
+    <width>1301</width>
+    <height>751</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,13 +21,13 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>672</y>
-      <width>80</width>
+      <y>668</y>
+      <width>70</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>불러오기(L)</string>
+     <string>File(F)</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_2">
@@ -37,21 +37,21 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>702</y>
-      <width>80</width>
+      <y>695</y>
+      <width>70</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>시작(A)</string>
+     <string>Load(L)</string>
     </property>
    </widget>
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>98</x>
-      <y>674</y>
-      <width>391</width>
+      <x>82</x>
+      <y>670</y>
+      <width>450</width>
       <height>20</height>
      </rect>
     </property>
@@ -59,7 +59,7 @@
      <enum>QFrame::StyledPanel</enum>
     </property>
     <property name="text">
-     <string>Video Path</string>
+     <string>File Path</string>
     </property>
     <property name="textFormat">
      <enum>Qt::PlainText</enum>
@@ -73,7 +73,7 @@
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>1111</width>
+      <width>1100</width>
       <height>621</height>
      </rect>
     </property>
@@ -90,8 +90,8 @@
    <widget class="QLabel" name="label3">
     <property name="geometry">
      <rect>
-      <x>602</x>
-      <y>672</y>
+      <x>640</x>
+      <y>666</y>
       <width>80</width>
       <height>20</height>
      </rect>
@@ -112,14 +112,14 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>502</x>
-      <y>672</y>
-      <width>90</width>
+      <x>540</x>
+      <y>666</y>
+      <width>101</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>오브젝트(O)</string>
+     <string>Object(O)</string>
     </property>
     <property name="checkable">
      <bool>false</bool>
@@ -134,49 +134,15 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>697</x>
-      <y>672</y>
-      <width>70</width>
+      <x>730</x>
+      <y>666</y>
+      <width>100</width>
       <height>51</height>
      </rect>
     </property>
     <property name="text">
-     <string>추적(T)</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_5">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="geometry">
-     <rect>
-      <x>940</x>
-      <y>677</y>
-      <width>51</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>W</string>
-    </property>
-    <property name="checked">
-     <bool>false</bool>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_6">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="geometry">
-     <rect>
-      <x>1006</x>
-      <y>677</y>
-      <width>50</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>R</string>
+     <string>Track Start
+(T)</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_7">
@@ -185,38 +151,22 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>640</y>
-      <width>180</width>
-      <height>80</height>
+      <x>1121</x>
+      <y>643</y>
+      <width>170</width>
+      <height>70</height>
      </rect>
     </property>
     <property name="text">
-     <string>초기화(Q)</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_8">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="geometry">
-     <rect>
-      <x>1070</x>
-      <y>677</y>
-      <width>51</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>S</string>
+     <string>Reset(Q)</string>
     </property>
    </widget>
    <widget class="QLabel" name="label4">
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>170</y>
-      <width>180</width>
+      <x>1121</x>
+      <y>212</y>
+      <width>170</width>
       <height>21</height>
      </rect>
     </property>
@@ -239,9 +189,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>780</x>
-      <y>672</y>
-      <width>70</width>
+      <x>840</x>
+      <y>665</y>
+      <width>100</width>
       <height>51</height>
      </rect>
     </property>
@@ -256,14 +206,14 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>502</x>
-      <y>702</y>
-      <width>90</width>
+      <x>540</x>
+      <y>696</y>
+      <width>101</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>타겟번호(C)</string>
+     <string>Target No.(C)</string>
     </property>
     <property name="checkable">
      <bool>false</bool>
@@ -275,10 +225,10 @@
    <widget class="QLabel" name="label6">
     <property name="geometry">
      <rect>
-      <x>1170</x>
-      <y>20</y>
-      <width>100</width>
-      <height>150</height>
+      <x>1154</x>
+      <y>38</y>
+      <width>101</width>
+      <height>171</height>
      </rect>
     </property>
     <property name="frameShape">
@@ -294,8 +244,8 @@
    <widget class="QLabel" name="label5">
     <property name="geometry">
      <rect>
-      <x>602</x>
-      <y>702</y>
+      <x>640</x>
+      <y>696</y>
       <width>80</width>
       <height>20</height>
      </rect>
@@ -316,9 +266,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>1280</x>
-      <y>540</y>
-      <width>31</width>
+      <x>1080</x>
+      <y>676</y>
+      <width>30</width>
       <height>30</height>
      </rect>
     </property>
@@ -332,8 +282,8 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>540</y>
+      <x>950</x>
+      <y>676</y>
       <width>30</width>
       <height>30</height>
      </rect>
@@ -345,8 +295,8 @@
    <widget class="QLabel" name="label7">
     <property name="geometry">
      <rect>
-      <x>1170</x>
-      <y>540</y>
+      <x>980</x>
+      <y>676</y>
       <width>100</width>
       <height>30</height>
      </rect>
@@ -355,7 +305,7 @@
      <enum>QFrame::NoFrame</enum>
     </property>
     <property name="text">
-     <string>배속  x1 배</string>
+     <string>speed  x1</string>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
@@ -364,14 +314,14 @@
    <widget class="QPushButton" name="pushButton_13">
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>480</y>
-      <width>180</width>
-      <height>50</height>
+      <x>1121</x>
+      <y>600</y>
+      <width>170</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
-     <string>폴더열기(Home)</string>
+     <string>Open Folder(Home)</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_14">
@@ -380,14 +330,17 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>580</y>
-      <width>180</width>
-      <height>50</height>
+      <x>1121</x>
+      <y>560</y>
+      <width>170</width>
+      <height>30</height>
      </rect>
     </property>
     <property name="text">
-     <string>대상만 표시(Tab)</string>
+     <string>Show target only(Tab)</string>
+    </property>
+    <property name="checkable">
+     <bool>true</bool>
     </property>
    </widget>
    <widget class="QSlider" name="horizontalSlider">
@@ -396,9 +349,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>20</x>
-      <y>647</y>
-      <width>1091</width>
+      <x>10</x>
+      <y>645</y>
+      <width>1090</width>
       <height>20</height>
      </rect>
     </property>
@@ -427,7 +380,7 @@
    <widget class="QLabel" name="label8">
     <property name="geometry">
      <rect>
-      <x>18</x>
+      <x>10</x>
       <y>630</y>
       <width>20</width>
       <height>17</height>
@@ -459,10 +412,10 @@
    <widget class="QListWidget" name="listWidget">
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>210</y>
-      <width>180</width>
-      <height>230</height>
+      <x>1121</x>
+      <y>250</y>
+      <width>170</width>
+      <height>210</height>
      </rect>
     </property>
    </widget>
@@ -472,9 +425,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>1130</x>
-      <y>440</y>
-      <width>70</width>
+      <x>1121</x>
+      <y>461</y>
+      <width>100</width>
       <height>25</height>
      </rect>
     </property>
@@ -485,7 +438,7 @@
      <string>shortcut(Insert)</string>
     </property>
     <property name="text">
-     <string>Save</string>
+     <string>Make json(J)</string>
     </property>
     <property name="checked">
      <bool>false</bool>
@@ -500,9 +453,9 @@
    <widget class="QPushButton" name="pushButton_16">
     <property name="geometry">
      <rect>
-      <x>1240</x>
-      <y>440</y>
-      <width>70</width>
+      <x>1231</x>
+      <y>461</y>
+      <width>60</width>
       <height>25</height>
      </rect>
     </property>
@@ -516,15 +469,14 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>861</x>
-      <y>672</y>
-      <width>70</width>
+      <x>1121</x>
+      <y>500</y>
+      <width>170</width>
       <height>50</height>
      </rect>
     </property>
     <property name="text">
-     <string>Action
-Start</string>
+     <string>Action Start (B)</string>
     </property>
     <property name="checkable">
      <bool>true</bool>
@@ -536,13 +488,13 @@ Start</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1316</width>
-     <height>22</height>
+     <width>1301</width>
+     <height>28</height>
     </rect>
    </property>
    <widget class="QMenu" name="menumenu">
     <property name="title">
-     <string>menu</string>
+     <string>Menu</string>
     </property>
     <addaction name="actionQuit"/>
    </widget>
@@ -551,6 +503,36 @@ Start</string>
   <action name="actionQuit">
    <property name="text">
     <string>Quit</string>
+   </property>
+  </action>
+  <action name="actionaction_1_w">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Action 1(&amp;w)</string>
+   </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionaction_2_r">
+   <property name="text">
+    <string>Action 2(&amp;r)</string>
+   </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionaction_3_3">
+   <property name="text">
+    <string>Action 3(&amp;s)</string>
+   </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
+   <property name="iconVisibleInMenu">
+    <bool>true</bool>
    </property>
   </action>
  </widget>
