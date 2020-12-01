@@ -17,8 +17,6 @@ Darknet_weights = "./pjtlibs/yolov4.weights"  # your darknet weight path
 
 yolo = Create_Yolo(input_size=input_size)  # 텐서플로우 네트워크 모델
 load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 모델로 로드
-# box_of_frame = []
-# video_path = './sample.mp4'
 
 
 def Object_tracking(YoloV3, video_path, output_path, input_size, show=False, CLASSES=YOLO_COCO_CLASSES,
@@ -91,12 +89,6 @@ def Object_tracking(YoloV3, video_path, output_path, input_size, show=False, CLA
             index = key_list[val_list.index(class_name)]  # Get predicted object index by object name
             tracked_bboxes.append(bbox.tolist() + [tracking_id, index])  # Structure data, that we could use it with our draw_bbox function
 
-#         box_of_frame.append(tracker.tracks + [tracker._next_id])
-#         framecount += 1
-#         print(framecount)
-#
-# Object_tracking(yolo, video_path, '', input_size=input_size, show=True, iou_threshold=0.3,
-#                         rectangle_colors=(255, 0, 0), Track_only=["person"])
         if len(tracked_bboxes) != 0:
             image = draw_bbox(original_image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
             if not os.path.isdir('./captured'):
