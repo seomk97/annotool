@@ -31,8 +31,8 @@ import json
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
 video_path = []
-text = None
-copied_text = None
+input_object = None
+copied_input_object = None
 framecount = 0
 end = False
 flush = False
@@ -53,9 +53,9 @@ button_checkable = False  # w,r,s is_checkable
 toggle_button = False  # action record toggle button is checked?
 action_started = 0  # action record started frame
 
-button5_checked = False
-button6_checked = False
-button8_checked = False
+w_checked = False
+r_checked = False
+s_checked = False
 
 YoloV4 = yolo  # yolo : tensorflow weight transformed from darknet weight at main.py
 score_threshold = 0.3
@@ -75,44 +75,101 @@ key_list = list(NUM_CLASS.keys())
 val_list = list(NUM_CLASS.values())
 
 
-class MyWindow(QMainWindow, form_class):
+class Signal_track(QObject):
+    frameCount = pyqtSignal(int)
+    buttonName = pyqtSignal(str, bool)
+    pixmapImage = pyqtSignal(QPixmap)
+
+    def slider_run(self, arg1):
+        self.frameCount.emit(arg1)
+
+    def btn_run(self, str, bool):
+        self.buttonName.emit(str, bool)
+
+    def pixmap_run(self, QPixmap):
+        self.pixmapImage.emit(QPixmap)
+
+
+class mainWindow(QMainWindow, form_class):
 
     def __init__(self):
         super().__init__()
+
         self.setupUi(self)
-        self.pushButton.clicked.connect(self.file_load)
-        self.pushButton_2.clicked.connect(self.start)
-        self.pushButton_3.clicked.connect(self.object_select)
-        self.pushButton_4.clicked.connect(self.my_thread)
-        self.pushButton_7.clicked.connect(self.q_key)
-        self.pushButton_9.clicked.connect(self.space_key)
-        self.pushButton_10.clicked.connect(self.target_change)
-        self.pushButton_11.clicked.connect(self.speed_up)
-        self.pushButton_12.clicked.connect(self.speed_down)
-        self.pushButton_13.clicked.connect(self.open_folder)
-        self.pushButton_14.clicked.connect(self.target_only_view)
-        self.pushButton_15.clicked.connect(self.make_json)
-        self.pushButton_16.clicked.connect(self.item_delete)
-        self.pushButton_17.clicked.connect(self.record_action_toggle)
+        self.btn_file.clicked.connect(self.file_load)
+        self.btn_load.clicked.connect(self.start)
+        self.btn_object.clicked.connect(self.object_select)
+        self.btn_track.clicked.connect(self.my_thread)
+        self.btn_reset.clicked.connect(self.q_key)
+        self.btn_play.clicked.connect(self.space_key)
+        self.btn_target.clicked.connect(self.target_change)
+        self.btn_up.clicked.connect(self.speed_up)
+        self.btn_down.clicked.connect(self.speed_down)
+        self.btn_folder.clicked.connect(self.open_folder)
+        self.btn_tab.clicked.connect(self.target_only_view)
+        self.btn_json.clicked.connect(self.make_json)
+        self.btn_delete.clicked.connect(self.item_delete)
+        self.btn_action_toggle.clicked.connect(self.record_action_toggle)
         self.horizontalSlider.sliderMoved.connect(self.slider_moved)
         self.horizontalSlider.sliderReleased.connect(self.slider_released)
         self.listWidget.itemDoubleClicked.connect(self.item_double_clicked)
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut('Ctrl+Q')
-        self.pushButton.setShortcut('f')
-        self.pushButton_2.setShortcut('l')
-        self.pushButton_3.setShortcut('o')
-        self.pushButton_4.setShortcut('t')
-        self.pushButton_7.setShortcut('q')
-        self.pushButton_9.setShortcut(Qt.Key.Key_Space)
-        self.pushButton_10.setShortcut('c')
-        self.pushButton_11.setShortcut(Qt.Key.Key_Right)
-        self.pushButton_12.setShortcut(Qt.Key.Key_Left)
-        self.pushButton_13.setShortcut(Qt.Key.Key_Home)
-        self.pushButton_14.setShortcut(Qt.Key.Key_Tab)
-        self.pushButton_15.setShortcut('j')
-        self.pushButton_16.setShortcut(Qt.Key.Key_Delete)
-        self.pushButton_17.setShortcut('b')
+        self.btn_file.setShortcut('f')
+        self.btn_load.setShortcut('l')
+        self.btn_object.setShortcut('o')
+        self.btn_track.setShortcut('t')
+        self.btn_reset.setShortcut('q')
+        self.btn_play.setShortcut(Qt.Key.Key_Space)
+        self.btn_target.setShortcut('c')
+        self.btn_up.setShortcut(Qt.Key.Key_Right)
+        self.btn_down.setShortcut(Qt.Key.Key_Left)
+        self.btn_folder.setShortcut(Qt.Key.Key_Home)
+        self.btn_tab.setShortcut(Qt.Key.Key_Tab)
+        self.btn_json.setShortcut('j')
+        self.btn_delete.setShortcut(Qt.Key.Key_Delete)
+        self.btn_action_toggle.setShortcut('b')
+
+    @pyqtSlot(QPixmap)
+    def pixmap_update(self, QPixmap):
+        self.label_mainscreen.setPixmap(QPixmap)
+
+    @pyqtSlot(int)
+    def slider_control(self, arg1):
+        self.horizontalSlider.setValue(arg1)
+
+    @pyqtSlot(str, bool)
+    def btn_control(self, str, bool):
+        if str == 'btn_action_toggle':
+            self.btn_action_toggle.setEnabled(bool)
+        elif str == 'btn_delete':
+            self.btn_delete.setEnabled(bool)
+        elif str == 'btn_down':
+            self.btn_down.setEnabled(bool)
+        elif str == 'btn_file':
+            self.btn_file.setEnabled(bool)
+        elif str == 'btn_folder':
+            self.btn_folder.setEnabled(bool)
+        elif str == 'btn_json':
+            self.btn_json.setEnabled(bool)
+        elif str == 'btn_load':
+            self.btn_load.setEnabled(bool)
+        elif str == 'btn_object':
+            self.btn_object.setEnabled(bool)
+        elif str == 'btn_play':
+            self.btn_play.setEnabled(bool)
+        elif str == 'btn_reset':
+            self.btn_reset.setEnabled(bool)
+        elif str == 'btn_tab':
+            self.btn_tab.setEnabled(bool)
+        elif str == 'btn_target':
+            self.btn_target.setEnabled(bool)
+        elif str == 'btn_track':
+            self.btn_track.setEnabled(bool)
+        elif str == 'btn_up':
+            self.btn_up.setEnabled(bool)
+        else:
+            raise Exception('btn invalid')
 
     def file_load(self):
         global video_path
@@ -125,23 +182,23 @@ class MyWindow(QMainWindow, form_class):
             num_of_frame = int(temp_vid.get(cv2.CAP_PROP_FRAME_COUNT))
             self.horizontalSlider.setMinimum(0)
             self.horizontalSlider.setMaximum(num_of_frame)
-            self.label9.setText('%d' % num_of_frame)
+            self.label_end_frame.setText('%d' % num_of_frame)
             temp_vid.release()
         else:
             pass
         if not video_path:
-            self.pushButton_2.setEnabled(False)
+            self.btn_load.setEnabled(False)
         else:
             if video_path_buffer[0] == '':
                 return
             else:
-                self.pushButton_2.setEnabled(True)
-                self.pushButton_7.setEnabled(True)
+                self.btn_load.setEnabled(True)
+                self.btn_reset.setEnabled(True)
                 return
 
     def img_load(self):
         pixmap = QPixmap("./captured/frame.jpg")
-        self.label2.setPixmap(pixmap)
+        self.label_mainscreen.setPixmap(pixmap)
         return
 
     def start(self):
@@ -149,37 +206,38 @@ class MyWindow(QMainWindow, form_class):
         global pause
         flush = False
         pause = False
-        self.pushButton_9.setText('Pause\n(space)')
-        self.pushButton_9.setShortcut(Qt.Key.Key_Space)
+        self.btn_play.setChecked(True)
+        self.btn_play.setText('Pause\n(space)')
+        self.btn_play.setShortcut(Qt.Key.Key_Space)
         Object_tracking(yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.3,
                         rectangle_colors=(255, 0, 0), Track_only=["person"])
         self.img_load()
         if os.path.isfile("./captured/frame.jpg"):
             os.remove("./captured/frame.jpg")
-        self.pushButton_3.setEnabled(True)
-        self.pushButton_2.setEnabled(False)
-        self.pushButton_7.setEnabled(True)
+        self.btn_object.setEnabled(True)
+        self.btn_load.setEnabled(False)
+        self.btn_reset.setEnabled(True)
         return
 
     def object_select(self):
-        global text
-        global copied_text
+        global input_object
+        global copied_input_object
         global pause
         global writing_dir
         global workspace
 
         if not tracking:
-            text, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
-            copied_text = text
+            input_object, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
+            copied_input_object = input_object
             if ok:
-                self.label3.setText('obj ' + str(copied_text))
-                self.label5.setText('person ' + str(text))
-                self.pushButton_4.setEnabled(True)
+                self.label_object.setText('obj ' + str(copied_input_object))
+                self.label_target.setText('person ' + str(input_object))
+                self.btn_track.setEnabled(True)
             else:
-                text = None
-                self.label3.setText("None")
-                self.label5.setText("None")
-                self.pushButton_4.setEnabled(False)
+                input_object = None
+                self.label_object.setText("None")
+                self.label_target.setText("None")
+                self.btn_track.setEnabled(False)
                 return
 
         if tracking:
@@ -188,25 +246,25 @@ class MyWindow(QMainWindow, form_class):
             else:
                 self.space_key()
 
-            text_2, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
+            input_object_2, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
             if ok:
-                if text != text_2:
+                if input_object != input_object_2:
                     self.make_json()
                     writing_dir = ""
                     workspace = []
                     self.listWidget.clear()
                 else:
                     pass
-                text = text_2
-                copied_text = text
-                self.label3.setText('obj ' + str(text))
-                self.label5.setText('person ' + str(text))
+                input_object = input_object_2
+                copied_input_object = input_object
+                self.label_object.setText('obj ' + str(input_object))
+                self.label_target.setText('person ' + str(input_object))
                 self.space_key()
             else:
                 return
 
     def target_change(self):
-        global text
+        global input_object
         global pause
         global target_changed
 
@@ -215,22 +273,22 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.space_key()
 
-        text_2, ok = QInputDialog.getInt(self, 'Target Change', 'Please input target number')
+        input_object_2, ok = QInputDialog.getInt(self, 'Changing Target', 'Please input desired target number')
         if ok:
-            text = text_2
-            self.label5.setText('person ' + str(text))
+            input_object = input_object_2
+            self.label_target.setText('person ' + str(input_object))
             target_changed = 1  # target_change state flag
             return
         else:
             return
 
     def my_thread(self):
-        self.pushButton.setEnabled(False)
-        self.pushButton_4.setEnabled(False)
-        self.pushButton_10.setEnabled(True)
-        self.pushButton_11.setEnabled(True)
-        self.pushButton_14.setEnabled(True)
-        self.pushButton_17.setEnabled(True)
+        self.btn_file.setEnabled(False)
+        self.btn_track.setEnabled(False)
+        self.btn_target.setEnabled(True)
+        self.btn_up.setEnabled(True)
+        self.btn_tab.setEnabled(True)
+        self.btn_action_toggle.setEnabled(True)
         self.horizontalSlider.setEnabled(False)
         th = threading.Thread(target=self.track)
         th.setDaemon(True)
@@ -239,12 +297,12 @@ class MyWindow(QMainWindow, form_class):
     def w_key(self):
         global workspace
         global action_started
-        label_n_count = [copied_text, framecount]
+        label_n_count = [copied_input_object, framecount]
 
         if button_checkable:
-            if button5_checked:
+            if w_checked:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -278,13 +336,13 @@ class MyWindow(QMainWindow, form_class):
                     elif workspace_item[0] < label_n_count[1]:
                         pass
 
-                self.label4.setText("%d.jpg   start_walking" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   start_walking" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
             else:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -320,14 +378,14 @@ class MyWindow(QMainWindow, form_class):
                             workspace.sort()
                             break
 
-                self.label4.setText("%d.jpg   end_walking" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   end_walking" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
 
         else:
             if objimg.size == 0:
-                self.label4.setText("Track Failed")
+                self.label_show_label.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -360,20 +418,20 @@ class MyWindow(QMainWindow, form_class):
                 elif workspace_item[0] < label_n_count[1]:
                     pass
 
-            self.label4.setText("%d.jpg   walking" % label_n_count[1])
+            self.label_show_label.setText("%d.jpg   walking" % label_n_count[1])
             pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label6.setPixmap(pixmap_small)
+            self.label_show_target.setPixmap(pixmap_small)
             return
 
     def r_key(self):
         global workspace
         global action_started
-        label_n_count = [copied_text, framecount]
+        label_n_count = [copied_input_object, framecount]
 
         if button_checkable:
-            if button6_checked:
+            if r_checked:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -407,13 +465,13 @@ class MyWindow(QMainWindow, form_class):
                     elif workspace_item[0] < label_n_count[1]:
                         pass
 
-                self.label4.setText("%d.jpg   start_running" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   start_running" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
             else:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -449,14 +507,14 @@ class MyWindow(QMainWindow, form_class):
                             workspace.sort()
                             break
 
-                self.label4.setText("%d.jpg   end_running" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   end_running" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
 
         else:
             if objimg.size == 0:
-                self.label4.setText("Track Failed")
+                self.label_show_label.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -489,20 +547,20 @@ class MyWindow(QMainWindow, form_class):
                 elif workspace_item[0] < label_n_count[1]:
                     pass
 
-            self.label4.setText("%d.jpg   running" % label_n_count[1])
+            self.label_show_label.setText("%d.jpg   running" % label_n_count[1])
             pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label6.setPixmap(pixmap_small)
+            self.label_show_target.setPixmap(pixmap_small)
             return
 
     def s_key(self):
         global workspace
         global action_started
-        label_n_count = [copied_text, framecount]
+        label_n_count = [copied_input_object, framecount]
 
         if button_checkable:
-            if button8_checked:
+            if s_checked:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -536,13 +594,13 @@ class MyWindow(QMainWindow, form_class):
                     elif workspace_item[0] < label_n_count[1]:
                         pass
 
-                self.label4.setText("%d.jpg   start_stop" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   start_stop" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
             else:
                 if objimg.size == 0:
-                    self.label4.setText("Track Failed")
+                    self.label_show_label.setText("Track Failed")
                     return
                 if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                     os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -578,14 +636,14 @@ class MyWindow(QMainWindow, form_class):
                             workspace.sort()
                             break
 
-                self.label4.setText("%d.jpg   end_stop" % label_n_count[1])
+                self.label_show_label.setText("%d.jpg   end_stop" % label_n_count[1])
                 pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label6.setPixmap(pixmap_small)
+                self.label_show_target.setPixmap(pixmap_small)
                 return
 
         else:
             if objimg.size == 0:
-                self.label4.setText("Track Failed")
+                self.label_show_label.setText("Track Failed")
                 return
             if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
                 os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
@@ -618,23 +676,25 @@ class MyWindow(QMainWindow, form_class):
                 elif workspace_item[0] < label_n_count[1]:
                     pass
 
-            self.label4.setText("%d.jpg   stop" % label_n_count[1])
+            self.label_show_label.setText("%d.jpg   stop" % label_n_count[1])
             pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label6.setPixmap(pixmap_small)
+            self.label_show_target.setPixmap(pixmap_small)
             return
 
     def space_key(self):
         global pause
         if not pause:
-            pause = True
-            self.pushButton_9.setText('Play\n(space)')
-            self.pushButton_9.setShortcut(Qt.Key.Key_Space)
             self.horizontalSlider.setEnabled(True)
+            pause = True
+            self.btn_play.setChecked(False)
+            self.btn_play.setText('Play\n(space)')
+            self.btn_play.setShortcut(Qt.Key.Key_Space)
         else:
-            pause = False
-            self.pushButton_9.setText('Pause\n(space)')
-            self.pushButton_9.setShortcut(Qt.Key.Key_Space)
             self.horizontalSlider.setEnabled(False)
+            pause = False
+            self.btn_play.setChecked(True)
+            self.btn_play.setText('Pause\n(space)')
+            self.btn_play.setShortcut(Qt.Key.Key_Space)
         return
 
     def q_key(self):
@@ -642,7 +702,7 @@ class MyWindow(QMainWindow, form_class):
         return
 
     def flush(self):
-        global text
+        global input_object
         global end
         global flush
         global pause
@@ -656,35 +716,35 @@ class MyWindow(QMainWindow, form_class):
         else:
             self.space_key()
 
-        reply = QMessageBox.question(self, 'Reset', 'Are you sure to reset?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, 'Reset', 'Do you want to proceed?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
             tracking = False
             flush = True
             set_speed = 1
             self.label.setText("File Path")
-            self.label3.setText("None")
-            self.label5.setText("None")
-            self.label7.setText("speed  x%d " % set_speed)
-            self.label4.setText("")
+            self.label_object.setText("None")
+            self.label_target.setText("None")
+            self.label_speed.setText("speed  x%d " % set_speed)
+            self.label_show_label.setText("")
             if os.path.isfile("./captured/frame.jpg"):
                 os.remove("./captured/frame.jpg")
             self.img_load()
             pixmap = QPixmap("./captured/frame.jpg")
-            self.label6.setPixmap(pixmap)
-            self.pushButton.setEnabled(True)
-            self.pushButton_2.setEnabled(False)
-            self.pushButton_3.setEnabled(False)
-            self.pushButton_4.setEnabled(False)
-            self.pushButton_7.setEnabled(False)
-            self.pushButton_9.setEnabled(False)
-            self.pushButton_10.setEnabled(False)
-            self.pushButton_11.setEnabled(False)
-            self.pushButton_12.setEnabled(False)
-            self.pushButton_14.setEnabled(False)
-            self.pushButton_17.setEnabled(False)
+            self.label_show_target.setPixmap(pixmap)
+            self.btn_file.setEnabled(True)
+            self.btn_load.setEnabled(False)
+            self.btn_object.setEnabled(False)
+            self.btn_track.setEnabled(False)
+            self.btn_reset.setEnabled(False)
+            self.btn_play.setEnabled(False)
+            self.btn_target.setEnabled(False)
+            self.btn_up.setEnabled(False)
+            self.btn_down.setEnabled(False)
+            self.btn_tab.setEnabled(False)
+            self.btn_action_toggle.setEnabled(False)
             self.make_json()
-            text = None
+            input_object = None
             end = False
             self.horizontalSlider.setValue(0)
             self.listWidget.clear()
@@ -693,16 +753,8 @@ class MyWindow(QMainWindow, form_class):
             return
         else:
             if end:
-                # self.pushButton_2.setEnabled(False)
-                # self.pushButton_3.setEnabled(False)
-                # self.pushButton_4.setEnabled(False)
-                self.pushButton_7.setEnabled(True)
-                # self.pushButton_9.setEnabled(False)
-                # self.pushButton_10.setEnabled(False)
-                # self.pushButton_11.setEnabled(False)
-                # self.pushButton_12.setEnabled(False)
-                # self.pushButton_14.setEnabled(False)
-                # self.pushButton_17.setEnabled(False)
+                self.btn_reset.setEnabled(True)
+
                 return
             else:
                 return
@@ -710,42 +762,35 @@ class MyWindow(QMainWindow, form_class):
     def video_end(self):
         global end
         global set_speed
-        QMessageBox.about(self, "Video end", "This is last frame of video")
         self.horizontalSlider.setValue(self.horizontalSlider.maximum())
         end = True
         set_speed = 1
-        self.label7.setText("speed  x%d " % set_speed)
-        # self.pushButton_2.setEnabled(False)
-        # self.pushButton_3.setEnabled(False)
-        # self.pushButton_4.setEnabled(False)
-        self.pushButton_7.setEnabled(True)
-        # self.pushButton_9.setEnabled(False)
-        # self.pushButton_10.setEnabled(False)
-        # self.pushButton_11.setEnabled(False)
-        # self.pushButton_12.setEnabled(False)
+        self.label_speed.setText("speed  x%d " % set_speed)
+        self.btn_reset.setEnabled(True)
+        # QMessageBox.about(self, "Video ended", "This is the last frame")  # focus issue don't use
         return
 
     def speed_up(self):
-        self.pushButton_12.setEnabled(True)
+        self.btn_down.setEnabled(True)
         global set_speed
         set_speed += 1
-        self.label7.setText("speed  x%d " % set_speed)
+        self.label_speed.setText("speed  x%d " % set_speed)
         return
 
     def speed_down(self):
         global set_speed
         if set_speed == 2:
             set_speed = 1
-            self.label7.setText("speed  x%d " % set_speed)
-            self.pushButton_12.setEnabled(False)
+            self.label_speed.setText("speed  x%d " % set_speed)
+            self.btn_down.setEnabled(False)
             return
         set_speed -= 1
-        self.label7.setText("speed  x%d " % set_speed)
+        self.label_speed.setText("speed  x%d " % set_speed)
         return
 
     def open_folder(self):
         if not os.path.isdir('./captured/'):
-            QMessageBox.about(self, "Cannot find directory", "Please generate ../captured/")
+            QMessageBox.about(self, "Couldn't find directory", "Please generate ../captured/")
         else:
             os.system('xdg-open "%s"' % './captured/')
         return
@@ -754,23 +799,24 @@ class MyWindow(QMainWindow, form_class):
         global target_only_view
         if not target_only_view:
             target_only_view = True
-            self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+            self.label_mainscreen.setPixmap(QPixmap.fromImage(qimg_1))
 
             return
         else:
             target_only_view = False
-            self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+            self.label_mainscreen.setPixmap(QPixmap.fromImage(qimg_2))
             return
 
     def slider_moved(self):
         global slider_moved, jump_to_frame, end
+        self.btn_tab.setEnabled(False)
         slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
         end = False
 
     def slider_released(self):
         global slider_moved, jump_to_frame, target_changed, objimg
-        self.centralwidget.setFocus()  # 슬라이더로 가있던 포커스 메인윈도우로 옮겨서 다시 키입력 활성화
+        # self.centralwidget.setFocus()  # 포커스 메인윈도우로 옮겨서 다시 키입력 활성화, slider의 no focus attribute로 필요없어짐
         slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
         target_changed = 1
@@ -784,10 +830,11 @@ class MyWindow(QMainWindow, form_class):
             pass
         item_index = self.listWidget.currentRow()
         self.horizontalSlider.setValue(workspace[item_index][0])
+        print(self.horizontalSlider.sliderPosition())
         jump_to_frame = self.horizontalSlider.value()
         pixmap_small = QPixmap(writing_dir + "/%d.jpg" % workspace[item_index][0])
-        self.label6.setPixmap(pixmap_small)
-        self.label4.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
+        self.label_show_target.setPixmap(pixmap_small)
+        self.label_show_label.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
         jumped = True
         end = False
         return
@@ -801,12 +848,12 @@ class MyWindow(QMainWindow, form_class):
                 workspace_label_list.append(workspace_things[1])
             if not pause:
                 self.space_key()
-            QMessageBox.about(self, "Make json", "Save complete")
+            QMessageBox.about(self, "Save complete", "Saved at  %s " % writing_dir[:])
         else:
             return
 
         json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
-        with open(writing_dir + "/%d.json" % copied_text, "w") as json_file:
+        with open(writing_dir + "/%d.json" % copied_input_object, "w") as json_file:
             json.dump(json_dict, json_file)
         return
 
@@ -817,8 +864,8 @@ class MyWindow(QMainWindow, form_class):
             os.remove(writing_dir + "/%d.jpg" % item[0])
             self.listWidget.takeItem(self.listWidget.currentRow())
             dummy_pixmap = QPixmap(writing_dir + "/%d.jpg" % item[0])
-            self.label6.setPixmap(dummy_pixmap)
-            self.label4.setText("")
+            self.label_show_target.setPixmap(dummy_pixmap)
+            self.label_show_label.setText("")
             return
         else:
             return
@@ -827,38 +874,38 @@ class MyWindow(QMainWindow, form_class):
         global button_checkable
         global toggle_button
         global workspace
-        global button5_checked, button6_checked, button8_checked
+        global w_checked, r_checked, s_checked
 
-        toggle_button = self.pushButton_17.isChecked()
+        toggle_button = self.btn_action_toggle.isChecked()
         if toggle_button:
             button_checkable = True
-            self.pushButton_17.setText("Action End (B)")
-            self.pushButton_17.setShortcut('b')
+            self.btn_action_toggle.setText("Action End (B)")
+            self.btn_action_toggle.setShortcut('b')
             return
         else:
-            self.pushButton_17.setText("Action Start (B)")
-            self.pushButton_17.setShortcut('b')
-            if button5_checked:
-                button5_checked = False
+            self.btn_action_toggle.setText("Action Start (B)")
+            self.btn_action_toggle.setShortcut('b')
+            if w_checked:
+                w_checked = False
                 self.w_key()
 
-            elif button6_checked:
-                button6_checked = False
+            elif r_checked:
+                r_checked = False
                 self.r_key()
 
-            elif button8_checked:
-                button8_checked = False
+            elif s_checked:
+                s_checked = False
                 self.s_key()
 
             button_checkable = False
             return
 
     def keyPressEvent(self, e):
-        global button5_checked, button6_checked, button8_checked
+        global w_checked, r_checked, s_checked
         if e.key() == Qt.Key_W:
             if button_checkable:
-                if not button5_checked and not button6_checked and not button8_checked:
-                    button5_checked = True
+                if not w_checked and not r_checked and not s_checked:
+                    w_checked = True
                 else:
                     return
                 self.w_key()
@@ -866,8 +913,8 @@ class MyWindow(QMainWindow, form_class):
                 self.w_key()
         elif e.key() == Qt.Key_R:
             if button_checkable:
-                if not button5_checked and not button6_checked and not button8_checked:
-                    button6_checked = True
+                if not w_checked and not r_checked and not s_checked:
+                    r_checked = True
                 else:
                     return
                 self.r_key()
@@ -875,8 +922,8 @@ class MyWindow(QMainWindow, form_class):
                 self.r_key()
         elif e.key() == Qt.Key_S:
             if button_checkable:
-                if not button5_checked and not button6_checked and not button8_checked:
-                    button8_checked = True
+                if not w_checked and not r_checked and not s_checked:
+                    s_checked = True
                 else:
                     return
                 self.s_key()
@@ -884,6 +931,11 @@ class MyWindow(QMainWindow, form_class):
                 self.s_key()
 
     def track(self):
+        signal = Signal_track()
+        signal.frameCount.connect(self.slider_control)
+        signal.buttonName.connect(self.btn_control)
+        signal.pixmapImage.connect(self.pixmap_update)
+
         tracker.tracks = []
         tracker._next_id = 1  # 트래커초기화
 
@@ -913,30 +965,32 @@ class MyWindow(QMainWindow, form_class):
 
             t1 = time.time()
 
-            if not os.path.isdir('./captured/obj%d' % copied_text):
-                writing_dir = "./captured/obj%d" % copied_text
+            if not os.path.isdir('./captured/obj%d' % copied_input_object):
+                writing_dir = "./captured/obj%d" % copied_input_object
                 os.mkdir(writing_dir)
             else:
                 i = 1
                 while writing_dir == "":  # object changed while tracking, writing_dir becomes "" and perform loop once
-                    if os.path.isdir('./captured/obj%d_%d' % (copied_text, i)):
+                    if os.path.isdir('./captured/obj%d_%d' % (copied_input_object, i)):
                         i += 1
                         continue
                     else:
-                        writing_dir = "./captured/obj%d_%d" % (copied_text, i)
+                        writing_dir = "./captured/obj%d_%d" % (copied_input_object, i)
                         os.mkdir(writing_dir)
                         break
 
-            myobject = text
+            myobject = input_object
 
             if pause:
+                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 pass
             else:
                 ret, img = vid.read()
                 if not ret:  # video end event
                     self.space_key()
                     self.video_end()
-                framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
+                else:
+                    framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
             if jumped:
                 if jump_to_frame > 8:
@@ -955,16 +1009,16 @@ class MyWindow(QMainWindow, form_class):
                 pass
             elif jump_count <= 8:
                 jump_count += 1
-                self.pushButton_9.setEnabled(False)
-                self.pushButton_17.setEnabled(False)
+                signal.btn_run('btn_play', False)
+                signal.btn_run('btn_action_toggle', False)
                 pause_flag = 1
                 pass
             elif jump_count > 8:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 self.space_key()
-                self.pushButton_9.setEnabled(True)
-                self.pushButton_17.setEnabled(True)
+                signal.btn_run('btn_play', True)
+                signal.btn_run('btn_action_toggle', True)
                 jump_count = None
                 pause_flag = 0
 
@@ -982,21 +1036,20 @@ class MyWindow(QMainWindow, form_class):
                                 h, w, ch = img.shape
                                 bytesPerLine = ch * w
                                 qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                                self.label2.setPixmap(QPixmap.fromImage(qimg_3))
+                                signal.pixmap_run(QPixmap.fromImage(qimg_3))
                                 framecount = jump_to_frame
-                                self.pushButton_14.setEnabled(True)
+                                signal.btn_run('btn_tab', True)
                                 slider_moved = False
                             else:
                                 pass
                         else:
                             pass
 
-                        self.horizontalSlider.setValue(framecount)
+                        signal.slider_run(framecount)
 
                         if not copied_tracked_bboxes:
-                            self.pushButton_17.setEnabled(False)
+                            signal.btn_run('btn_action_toggle', False)
 
-                        # time.sleep(0.005)
                         if target_changed == 1:
                             break
                         if jumped:
@@ -1013,7 +1066,7 @@ class MyWindow(QMainWindow, form_class):
                     else:
                         for i in range(set_speed - 1):
                             ret, img = vid.read()
-                            self.horizontalSlider.setValue(vid.get(cv2.CAP_PROP_POS_FRAMES))
+                            signal.slider_run(vid.get(cv2.CAP_PROP_POS_FRAMES))
                             framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
             else:
@@ -1029,21 +1082,20 @@ class MyWindow(QMainWindow, form_class):
                         h, w, ch = img.shape
                         bytesPerLine = ch * w
                         qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_3))
+                        signal.pixmap_run(QPixmap.fromImage(qimg_3))
                         framecount = jump_to_frame
-                        self.pushButton_14.setEnabled(True)
+                        signal.btn_run('btn_tab', True)
                         slider_moved = False
                     else:
                         pass
                 else:
                     pass
 
-                self.horizontalSlider.setValue(framecount)
+                signal.slider_run(framecount)
 
                 if not copied_tracked_bboxes:
-                    self.pushButton_17.setEnabled(False)
+                    signal.btn_run('btn_action_toggle', False)
 
-                # time.sleep(0.005)
                 if target_changed == 1:
                     break
                 if jumped:
@@ -1059,7 +1111,7 @@ class MyWindow(QMainWindow, form_class):
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 ret, img = vid.read()
-                myobject = text
+                myobject = input_object
                 target_changed = 0
                 pass
 
@@ -1067,7 +1119,7 @@ class MyWindow(QMainWindow, form_class):
                 continue
 
             original_image = img
-            self.horizontalSlider.setValue(framecount)
+            signal.slider_run(framecount)
 
             if not ret:
                 if not pause:
@@ -1113,7 +1165,7 @@ class MyWindow(QMainWindow, form_class):
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 1: # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
+                if not track.is_confirmed() or track.time_since_update > 1:  # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
                     continue
                 bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
                 class_name = track.get_class()  # Get the class name of particular object
@@ -1130,14 +1182,14 @@ class MyWindow(QMainWindow, form_class):
             if len(tracked_bboxes) != 0:
 
                 if jump_count is None:
-                    self.pushButton_7.setEnabled(True)
-                    self.pushButton_9.setEnabled(True)
-                    self.pushButton_10.setEnabled(True)
-                    self.pushButton_11.setEnabled(True)
-                    self.pushButton_17.setEnabled(True)
+                    signal.btn_run('btn_reset', True)
+                    signal.btn_run('btn_play', True)
+                    signal.btn_run('btn_target', True)
+                    signal.btn_run('btn_up', True)
+                    signal.btn_run('btn_action_toggle', True)
                 else:
                     pass
-                self.pushButton_14.setEnabled(True)
+                signal.btn_run('btn_tab', True)
 
                 copied_tracked_bboxes = []
                 for i, value in enumerate(tracked_bboxes):
@@ -1149,7 +1201,7 @@ class MyWindow(QMainWindow, form_class):
                         pass
 
                 if not copied_tracked_bboxes:
-                    self.pushButton_17.setEnabled(False)
+                    signal.btn_run('btn_action_toggle', False)
 
                     image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                         1, (0, 0, 255), 2)
@@ -1164,9 +1216,11 @@ class MyWindow(QMainWindow, form_class):
                     qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
 
                     if not target_only_view:
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+                        signal.pixmap_run(QPixmap.fromImage(qimg_2))
                     else:
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+                        signal.pixmap_run(QPixmap.fromImage(qimg_1))
+
+                    signal.btn_run('btn_tab', True)
                     objimg = np.array([])
                     pass
 
@@ -1189,14 +1243,15 @@ class MyWindow(QMainWindow, form_class):
                     h, w, ch = image.shape
                     bytesPerLine = ch * w
                     qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-
                     image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
                     qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
 
                     if not target_only_view:
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_2))
+                        signal.pixmap_run(QPixmap.fromImage(qimg_2))
                     else:
-                        self.label2.setPixmap(QPixmap.fromImage(qimg_1))
+                        signal.pixmap_run(QPixmap.fromImage(qimg_1))
+
+                    signal.btn_run('btn_tab', True)
 
                 fps2 = int(fps)
                 print(framecount, ", fps:", fps2)
@@ -1207,6 +1262,6 @@ class MyWindow(QMainWindow, form_class):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    Annotation_tool = MyWindow()
+    Annotation_tool = mainWindow()
     Annotation_tool.show()
     sys.exit(app.exec_())
