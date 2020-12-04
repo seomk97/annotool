@@ -66,12 +66,12 @@ max_cosine_distance = 0.4
 nn_budget = None
 
 # initialize deep sort object
-model_filename = "./pjtlibs/mars-small128.pb"  # deep sort 웨이트
+model_filename = "./pjtlibs/mars-small128.pb"  # deep sort weight
 encoder = gdet.create_box_encoder(model_filename, batch_size=1)
 metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
 tracker = Tracker(metric)
 
-NUM_CLASS = read_class_names(CLASSES)  # name strip 하는 커스텀함수 from utils
+NUM_CLASS = read_class_names(CLASSES)  # name strip from utils
 key_list = list(NUM_CLASS.keys())
 val_list = list(NUM_CLASS.values())
 
@@ -81,8 +81,8 @@ class SignalOfTrack(QObject):
     buttonName = pyqtSignal(str, bool)
     pixmapImage = pyqtSignal(QPixmap)
 
-    def slider_run(self, arg1):
-        self.frameCount.emit(arg1)
+    def slider_run(self, int):
+        self.frameCount.emit(int)
 
     def btn_run(self, str, bool):
         self.buttonName.emit(str, bool)
@@ -136,8 +136,8 @@ class MainWindow(QMainWindow, form_class):
         self.label_mainscreen.setPixmap(QPixmap)
 
     @pyqtSlot(int)
-    def slider_control(self, arg1):
-        self.horizontalSlider.setValue(arg1)
+    def slider_control(self, int):
+        self.horizontalSlider.setValue(int)
 
     @pyqtSlot(str, bool)
     def btn_control(self, str, bool):
@@ -692,6 +692,7 @@ class MainWindow(QMainWindow, form_class):
             self.btn_play.setChecked(False)
             self.btn_play.setText('Play\n(space)')
             self.btn_play.setShortcut(Qt.Key.Key_Space)
+            self.centralwidget.setFocus()
         else:
             self.horizontalSlider.setEnabled(False)
             pause = False
@@ -752,7 +753,8 @@ class MainWindow(QMainWindow, form_class):
             self.make_json()
             input_object = None
             end = False
-            self.horizontalSlider.setValue(0)
+            self.horizontalSlider.setValue(1)
+            self.horizontalSlider.setEnabled(False)
             self.listWidget.clear()
             workspace = []
             writing_dir = ""
@@ -824,7 +826,7 @@ class MainWindow(QMainWindow, form_class):
 
     def slider_released(self):
         global slider_moved, jump_to_frame, escape, objimg
-        # self.centralwidget.setFocus()  # 포커스 메인윈도우로 옮겨서 다시 키입력 활성화, slider의 no focus attribute로 필요없어짐
+        # self.centralwidget.setFocus()
         slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
         escape = 1
@@ -945,11 +947,11 @@ class MainWindow(QMainWindow, form_class):
         signal.pixmapImage.connect(self.pixmap_update)
 
         tracker.tracks = []
-        tracker._next_id = 1  # 트래커초기화
+        tracker._next_id = 1  # init tracker
 
-        vid = cv2.VideoCapture(video_path[0])  # 비디오 불러오기
+        vid = cv2.VideoCapture(video_path[0])
 
-        Track_only = ['person']  # yolo class중에 person만 bounding box 형성
+        Track_only = ['person']
         global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape
 
         # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
@@ -962,14 +964,15 @@ class MainWindow(QMainWindow, form_class):
         # target_changed = 타겟변경이 이루어진 이벤트 (기본 0, 변경시 1 전프레임으로 돌아가서 타겟변경후 한번 prediction 후 pause 유지)
         # pause = play/pause event handler
         # writing_dir = object writing directory "./captured/object%d_%d"
-        # pause to play transition flag
+
         framecount = 0.0
         times = []  # for calculating fps
         tracking = True
         jump_count = None  # count for inner loop (listwidget item double click event)
         pause_flag = 0
         token = 0
-
+        ret = 0
+        img = 0
         while True:
 
             t1 = time.time()
@@ -1021,6 +1024,8 @@ class MainWindow(QMainWindow, form_class):
                 signal.btn_run('btn_play', False)
                 signal.btn_run('btn_action_toggle', False)
                 signal.btn_run('btn_tab', False)
+                signal.btn_run('btn_object', False)
+                signal.btn_run('btn_target', False)
                 pause_flag = 1
                 pass
             elif jump_count > 8:
@@ -1030,6 +1035,8 @@ class MainWindow(QMainWindow, form_class):
                 signal.btn_run('btn_play', True)
                 signal.btn_run('btn_action_toggle', True)
                 signal.btn_run('btn_tab', True)
+                signal.btn_run('btn_object', True)
+                signal.btn_run('btn_target', True)
                 jump_count = None
                 pause_flag = 0
 
@@ -1060,11 +1067,7 @@ class MainWindow(QMainWindow, form_class):
                         if not copied_tracked_bboxes:
                             signal.btn_run('btn_action_toggle', False)
 
-                        if target_changed == 1:
-                            break
-                        if jumped:
-                            break
-                        if pause_flag:
+                        if target_changed or jumped or pause_flag:
                             break
                         if flush:
                             return
@@ -1073,7 +1076,8 @@ class MainWindow(QMainWindow, form_class):
                             break
 
                     if target_changed or escape:
-                        escape = 0
+                        if escape:
+                            escape = 0
                         pass
                     else:
                         for i in range(set_speed - 1):
@@ -1110,11 +1114,7 @@ class MainWindow(QMainWindow, form_class):
                 if escape:
                     escape = 0
                     break
-                if target_changed:
-                    break
-                if jumped:
-                    break
-                if pause_flag:
+                if target_changed or jumped or pause_flag:
                     break
                 if flush:
                     return
@@ -1147,7 +1147,7 @@ class MainWindow(QMainWindow, form_class):
             else:
                 pass
 
-            image_data = image_preprocess(np.copy(original_image), [input_size, input_size])  # 인풋 프레임 전처리
+            image_data = image_preprocess(np.copy(original_image), [input_size, input_size])
             image_data = tf.expand_dims(image_data, 0)
 
             pred_bbox = YoloV4.predict(image_data)
@@ -1156,7 +1156,7 @@ class MainWindow(QMainWindow, form_class):
             pred_bbox = tf.concat(pred_bbox, axis=0)
 
             bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
-            bboxes = nms(bboxes, iou_threshold, method='nms')  # 신뢰도 낮은 박스 제거하는 커스텀 함수 from utils
+            bboxes = nms(bboxes, iou_threshold, method='nms')  # nms from utils
 
             # extract bboxes to boxes (x, y, width, height), scores and names
             boxes, scores, names = [], [], []
@@ -1183,7 +1183,7 @@ class MainWindow(QMainWindow, form_class):
             # Obtain info from the tracks
             tracked_bboxes = []
             for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 1:  # currently tracked objects is in tracker.tracks and its updated time count is time_since_update 5시간단위 이상 넘은것들은 그냥 넘긴
+                if not track.is_confirmed() or track.time_since_update > 1:  # currently tracked objects is in tracker.tracks and its updated time count is time_since_update
                     continue
                 bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
                 class_name = track.get_class()  # Get the class name of particular object
@@ -1196,8 +1196,6 @@ class MainWindow(QMainWindow, form_class):
             times.append(t2 - t1)
             times = times[-20:]
             fps = 1000 / (sum(times) / len(times) * 1000)
-
-            # if len(tracked_bboxes) != 0:
 
             if jump_count is None:
                 signal.btn_run('btn_reset', True)
@@ -1271,9 +1269,6 @@ class MainWindow(QMainWindow, form_class):
 
             fps2 = int(fps)
             print(framecount, ", fps:", fps2)
-            #
-            # else:
-            #     pass
 
 
 if __name__ == "__main__":
