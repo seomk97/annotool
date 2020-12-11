@@ -4,6 +4,11 @@
 3. install packages in requirements.txt
 4. build qt.py (cuda 10.1, cudnn 7.6.5, ubuntu 18.04)
 
+<<<<<<< HEAD
+=======
+![스크린샷, 2020-12-04 16-43-30](https://user-images.githubusercontent.com/70502705/101143621-81594580-365a-11eb-9bcf-f81cfa04b7a7.png)
+
+>>>>>>> 44f15c533e96d940e3872b201a866344ba10a067
 = 위젯 구성 =
 * 각 버튼의 숏컷들은 버튼 괄호안에 표시되어 있습니다
 * 화면 가운데 메인 프레임에 영상이 표시됩니다
