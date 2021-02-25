@@ -17,7 +17,7 @@
    <string>Video Annotation tool</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QPushButton" name="pushButton">
+   <widget class="QPushButton" name="btn_file">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -30,7 +30,7 @@
      <string>File(F)</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_2">
+   <widget class="QPushButton" name="btn_load">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -68,7 +68,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QLabel" name="label2">
+   <widget class="QLabel" name="label_mainscreen">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -87,7 +87,7 @@
      <bool>true</bool>
     </property>
    </widget>
-   <widget class="QLabel" name="label3">
+   <widget class="QLabel" name="label_object">
     <property name="geometry">
      <rect>
       <x>640</x>
@@ -106,7 +106,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_3">
+   <widget class="QPushButton" name="btn_object">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -128,7 +128,7 @@
      <bool>false</bool>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_4">
+   <widget class="QPushButton" name="btn_track">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -145,7 +145,7 @@
 (T)</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_7">
+   <widget class="QPushButton" name="btn_reset">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -161,7 +161,7 @@
      <string>Reset(Q)</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label4">
+   <widget class="QLabel" name="label_show_label">
     <property name="geometry">
      <rect>
       <x>1121</x>
@@ -183,7 +183,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_9">
+   <widget class="QPushButton" name="btn_play">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -200,7 +200,7 @@
 (space)</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_10">
+   <widget class="QPushButton" name="btn_target">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -222,7 +222,7 @@
      <bool>false</bool>
     </property>
    </widget>
-   <widget class="QLabel" name="label6">
+   <widget class="QLabel" name="label_show_target">
     <property name="geometry">
      <rect>
       <x>1154</x>
@@ -241,7 +241,7 @@
      <bool>true</bool>
     </property>
    </widget>
-   <widget class="QLabel" name="label5">
+   <widget class="QLabel" name="label_target">
     <property name="geometry">
      <rect>
       <x>640</x>
@@ -260,7 +260,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_11">
+   <widget class="QPushButton" name="btn_up">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -276,7 +276,7 @@
      <string>→</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_12">
+   <widget class="QPushButton" name="btn_down">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -292,7 +292,7 @@
      <string>←</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label7">
+   <widget class="QLabel" name="label_speed">
     <property name="geometry">
      <rect>
       <x>980</x>
@@ -311,7 +311,7 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_13">
+   <widget class="QPushButton" name="btn_folder">
     <property name="geometry">
      <rect>
       <x>1121</x>
@@ -324,7 +324,7 @@
      <string>Open Folder(Home)</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_14">
+   <widget class="QPushButton" name="btn_tab">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -377,23 +377,23 @@
      <number>100</number>
     </property>
    </widget>
-   <widget class="QLabel" name="label8">
+   <widget class="QLabel" name="label_start_frame">
     <property name="geometry">
      <rect>
-      <x>10</x>
+      <x>6</x>
       <y>630</y>
       <width>20</width>
       <height>17</height>
      </rect>
     </property>
     <property name="text">
-     <string>0</string>
+     <string>1</string>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QLabel" name="label9">
+   <widget class="QLabel" name="label_end_frame">
     <property name="geometry">
      <rect>
       <x>1060</x>
@@ -419,7 +419,7 @@
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_15">
+   <widget class="QPushButton" name="btn_json">
     <property name="enabled">
      <bool>true</bool>
     </property>
@@ -450,7 +450,7 @@
      <bool>false</bool>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_16">
+   <widget class="QPushButton" name="btn_delete">
     <property name="geometry">
      <rect>
       <x>1231</x>
@@ -463,7 +463,7 @@
      <string>Delete</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_17">
+   <widget class="QPushButton" name="btn_action_toggle">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -489,7 +489,7 @@
      <x>0</x>
      <y>0</y>
      <width>1301</width>
-     <height>28</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menumenu">
