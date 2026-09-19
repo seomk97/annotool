@@ -124,9 +124,9 @@ python qt.py
 | 기능 | 설명 |
 |---|---|
 | File | annotation할 영상 선택 |
-| Detect IDs | 첫 frame에 detection / tracking ID overlay 표시 |
-| Object | 사용자 정의 object 이름과 초기 track ID 지정 |
-| Target | 화면의 현재 track ID만 변경; object 이름/저장 identity는 유지 |
+| Load | 첫 frame에 detection / tracking box 번호 overlay 표시 |
+| Object | 사용자 정의 object 이름과 초기 box 번호 지정 |
+| Box No. | 화면의 현재 box 번호만 변경; object 이름/저장 identity는 유지 |
 | Start / Pause / Resume | tracking worker 최초 시작과 재생/일시정지를 하나의 버튼에서 처리 |
 | Arrow keys | 재생 속도 조절 (`0.1x` 단위, 최저 `0.1x`) |
 | Make JSON | 현재 기록을 JSON으로 저장 |
@@ -138,11 +138,11 @@ python qt.py
 
 각 버튼의 주요 shortcut은 GUI 버튼에 함께 표시됩니다.
 
-### Object identity and track ID
+### Object identity and box 번호
 
 `Object`는 사용자가 정하는 논리적인 이름입니다. 예를 들어 `person_A`, `customer_01`처럼 지정할 수 있고 결과 폴더와 JSON 파일도 이 이름을 기준으로 저장됩니다.
 
-화면의 `person 10` 같은 숫자는 tracker가 현재 부여한 ID입니다. ID가 바뀌면 `Target ID`만 수정하며 object 이름과 annotation workspace는 유지됩니다.
+화면의 `person 10` 같은 숫자는 tracker가 현재 부여한 ID입니다. ID가 바뀌면 `Box No.`만 수정하며 object 이름과 annotation workspace는 유지됩니다.
 
 영상 파일을 선택하면 detector를 기다리지 않고 raw 첫 frame을 먼저 표시합니다. 이후 `Detect IDs`를 누르면 첫 frame에 tracker ID가 overlay됩니다.
 
@@ -168,7 +168,7 @@ Action End
 
 ### Playback and window scaling
 
-- 기본 재생 속도는 `1.0x`이며 좌/우 화살표로 `0.1x` 단위로 조절합니다.
+- 기본 재생 속도는 `1.0x`이며 tracking 시작 전부터 좌/우 화살표로 `0.1x` 단위로 미리 조절할 수 있습니다.
 - 최저 속도는 `0.1x`이며 `1.1x`, `1.7x` 같은 fractional speed도 지원합니다.
 - 메인 창의 모서리/테두리를 드래그하면 영상 영역과 컨트롤 배치가 함께 확대·축소됩니다.
 - 영상 자체는 화면 비율을 유지해 표시합니다.
