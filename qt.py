@@ -1468,6 +1468,7 @@ class MainWindow(QMainWindow, form_class):
                 conf=score_threshold,
                 iou=iou_threshold,
                 classes=[0],  # person
+                preferred_track_id=myobject,
             )
             t2 = time.time()
             times.append(t2 - t1)
