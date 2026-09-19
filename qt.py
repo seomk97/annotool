@@ -115,7 +115,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_tab.setGeometry(1121, 580, 170, 30)
         self.btn_tab.setText("Show Target Only (Tab)")
         self.btn_folder.setGeometry(1121, 620, 170, 30)
-        self.btn_reset.setGeometry(1121, 660, 170, 30)
+        self.btn_reset.setGeometry(1121, 665, 170, 45)
 
         # Track Start and Play/Pause represent one user operation. Keep the
         # historical worker/pause implementation underneath, but expose one
@@ -503,6 +503,29 @@ class MainWindow(QMainWindow, form_class):
     def _safe_object_slug(name):
         slug = re.sub(r'[<>:"/\\|?*]+', "_", name).strip().strip(".")
         return slug or "object"
+
+    def _ensure_writing_dir(self):
+        """Create the object's output directory only when an action is saved."""
+        global writing_dir
+
+        if writing_dir:
+            return writing_dir
+        if not object_slug:
+            return ""
+
+        os.makedirs("./captured", exist_ok=True)
+        base_dir = os.path.join("./captured", object_slug)
+
+        if not os.path.isdir(base_dir):
+            writing_dir = base_dir
+        else:
+            index = 1
+            while os.path.isdir(f"{base_dir}_{index}"):
+                index += 1
+            writing_dir = f"{base_dir}_{index}"
+
+        os.makedirs(writing_dir, exist_ok=True)
+        return writing_dir
 
     def object_select(self):
         global input_object
@@ -1224,8 +1247,12 @@ class MainWindow(QMainWindow, form_class):
     def _record_action_marker(self, label):
         global workspace
 
-        if objimg.size == 0 or not writing_dir:
+        if objimg.size == 0:
             self.label_show_label.setText("Track Failed")
+            return False
+
+        if not self._ensure_writing_dir():
+            self.label_show_label.setText("No Object")
             return False
 
         current_frame = int(framecount)
@@ -1465,21 +1492,6 @@ class MainWindow(QMainWindow, form_class):
 
             loop_started = time.perf_counter()
             t1 = time.time()
-
-            if writing_dir == "":
-                os.makedirs("./captured", exist_ok=True)
-                base_name = object_slug or "object"
-                base_dir = os.path.join("./captured", base_name)
-
-                if not os.path.isdir(base_dir):
-                    writing_dir = base_dir
-                else:
-                    i = 1
-                    while os.path.isdir(f"{base_dir}_{i}"):
-                        i += 1
-                    writing_dir = f"{base_dir}_{i}"
-
-                os.makedirs(writing_dir, exist_ok=True)
 
             myobject = input_object
 
