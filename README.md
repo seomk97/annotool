@@ -133,6 +133,8 @@ annotation 결과는 `captured/` 아래에 object 단위 폴더로 저장됩니�
   https://github.com/nwojke/deep_sort
 - Deep SORT paper: *Simple Online and Realtime Tracking with a Deep Association Metric*, ICIP 2017
 
+자세한 third-party provenance와 license 사본은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 정리했습니다.
+
 ## Notes
 
 이 프로젝트는 detector나 tracker 자체를 새로 제안한 프로젝트가 아니라, 기존 YOLOv4 + Deep SORT pipeline을 실제 영상 annotation 작업에 사용할 수 있도록 GUI와 annotation workflow로 통합한 도구입니다.
