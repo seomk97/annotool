@@ -84,7 +84,7 @@ def _center_distance_ratio(a, b):
     return distance / scale
 
 
-def _suppress_duplicate_person_tracks(candidates):
+def _suppress_duplicate_person_tracks(candidates, preferred_track_id=None):
     """Keep one track when multiple IDs clearly describe the same person.
 
     This is intentionally conservative: real overlapping people should remain
@@ -92,7 +92,15 @@ def _suppress_duplicate_person_tracks(candidates):
     Each candidate is (confidence, box_row).
     """
     kept = []
-    for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            item[1][4] == preferred_track_id,
+            item[0],
+        ),
+        reverse=True,
+    )
+    for candidate in ordered:
         _, box = candidate
         duplicate = False
 
@@ -207,7 +215,14 @@ class YOLOTrackerAdapter:
         with self._lock:
             self._reset_tracker_state()
 
-    def track_frame(self, frame, conf=None, iou=None, classes=(0,)):
+    def track_frame(
+        self,
+        frame,
+        conf=None,
+        iou=None,
+        classes=(0,),
+        preferred_track_id=None,
+    ):
         with self._lock:
             if not self._prepared:
                 self.prepare()
@@ -257,7 +272,10 @@ class YOLOTrackerAdapter:
         # TrackTrack can occasionally keep two different IDs on one person
         # during recovery/occlusion. Collapse only strongly overlapping or
         # nested boxes, keeping the detector observation with higher confidence.
-        deduped = _suppress_duplicate_person_tracks(list(best_by_id.values()))
+        deduped = _suppress_duplicate_person_tracks(
+            list(best_by_id.values()),
+            preferred_track_id=preferred_track_id,
+        )
         deduped.sort(key=lambda item: item[1][4])
         return [box for _, box in deduped]
 
