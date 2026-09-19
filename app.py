@@ -1,6 +1,4 @@
-import json
 import os
-import re
 import sys
 import threading
 import time
@@ -11,6 +9,7 @@ import numpy as np
 # Import the PyTorch backend before PyQt on Windows to avoid c10.dll load issues.
 from tracking import create_tracking_preview, draw_tracks, tracker
 from camera import FISHEYE_CALIB, configure_fisheye, fisheye, preprocess_frame
+from storage import AnnotationSession
 
 from PyQt5 import uic
 from PyQt5.QtCore import QObject, QRect, QSize, Qt, pyqtSignal, pyqtSlot
@@ -35,7 +34,6 @@ form_class = uic.loadUiType(UI_PATH)[0]
 video_path = []
 input_object = None          # current tracker ID shown on the video
 object_name = ""             # user-defined persistent object name
-object_slug = ""             # filesystem-safe object name
 framecount = 0
 end = False
 stop_requested = False
@@ -53,7 +51,6 @@ jump_to_frame = 0
 workspace = []
 jumped = False
 target_changed = 0
-writing_dir = ""
 escape = 0
 
 class TrackingSignals(QObject):
@@ -88,6 +85,7 @@ class AnnotationWindow(QMainWindow, form_class):
         self.setupUi(self)
 
         self.active_action = None
+        self.annotation_session = AnnotationSession()
 
         # Scale the designer geometry from its 1301x730 logical canvas.
         # Avoid reading the central widget size before the first layout pass.
@@ -119,7 +117,6 @@ class AnnotationWindow(QMainWindow, form_class):
         self.btn_down.clicked.connect(self.speed_down)
         self.btn_folder.clicked.connect(self.open_folder)
         self.btn_tab.clicked.connect(self.target_only_view)
-        self.btn_json.clicked.connect(self.make_json)
         self.btn_delete.clicked.connect(self.item_delete)
         self.btn_action_toggle.clicked.connect(self.record_action_toggle)
         self.btn_action_snapshot.clicked.connect(self.record_action_snapshot)
@@ -143,7 +140,6 @@ class AnnotationWindow(QMainWindow, form_class):
             self.btn_down,
             self.btn_folder,
             self.btn_tab,
-            self.btn_json,
             self.btn_delete,
             self.btn_action_toggle,
             self.btn_action_snapshot,
@@ -188,7 +184,6 @@ class AnnotationWindow(QMainWindow, form_class):
             QKeySequence(Qt.Key_Tab),
             lambda: self._click_if_enabled(self.btn_tab),
         )
-        self._add_shortcut("J", lambda: self._click_if_enabled(self.btn_json))
         self._add_shortcut(
             QKeySequence(Qt.Key_Delete),
             lambda: self._click_if_enabled(self.btn_delete),
@@ -277,7 +272,6 @@ class AnnotationWindow(QMainWindow, form_class):
             "btn_down": self.btn_down,
             "btn_file": self.btn_file,
             "btn_folder": self.btn_folder,
-            "btn_json": self.btn_json,
             "btn_load": self.btn_load,
             "btn_object": self.btn_object,
             "btn_reset": self.btn_reset,
@@ -332,6 +326,7 @@ class AnnotationWindow(QMainWindow, form_class):
             configure_fisheye("")
 
         video_path = video_path_buffer
+        self.annotation_session.set_video(video_path[0])
         self.label.setText(video_path[0])
 
         # Opening a video and showing it must not wait for YOLO/tracker setup.
@@ -466,41 +461,26 @@ class AnnotationWindow(QMainWindow, form_class):
         self.btn_object.setEnabled(True)
         self.btn_reset.setEnabled(True)
 
-    @staticmethod
-    def _safe_object_slug(name):
-        slug = re.sub(r'[<>:"/\\|?*]+', "_", name).strip().strip(".")
-        return slug or "object"
+    def _refresh_object_annotations(self):
+        global workspace
 
-    def _ensure_writing_dir(self):
-        """Create the object's output directory only when an action is saved."""
-        global writing_dir
+        workspace = self.annotation_session.annotations_for_object(object_name)
+        self.listWidget.clear()
+        for record in workspace:
+            self.listWidget.addItem(
+                f" {record['frame_number']}    {record['action']} "
+            )
 
-        if writing_dir:
-            return writing_dir
-        if not object_slug:
-            return ""
-
-        os.makedirs("./captured", exist_ok=True)
-        base_dir = os.path.join("./captured", object_slug)
-
-        if not os.path.isdir(base_dir):
-            writing_dir = base_dir
-        else:
-            index = 1
-            while os.path.isdir(f"{base_dir}_{index}"):
-                index += 1
-            writing_dir = f"{base_dir}_{index}"
-
-        os.makedirs(writing_dir, exist_ok=True)
-        return writing_dir
+    def _reset_active_action(self):
+        self.active_action = None
+        self.btn_action_toggle.setChecked(False)
+        self.btn_action_toggle.setText("Action Start (B)")
+        self.btn_action_toggle.setToolTip("")
 
     def object_select(self):
         global input_object
         global object_name
-        global object_slug
         global pause
-        global writing_dir
-        global workspace
 
         was_playing = tracking and not pause
         if was_playing:
@@ -530,26 +510,20 @@ class AnnotationWindow(QMainWindow, form_class):
                 self.space_key()
             return
 
-        # Selecting a different logical object starts a separate annotation
-        # workspace. Changing only the tracker ID is handled by Target ID.
-        if tracking and object_name and name != object_name:
-            self.make_json()
-            writing_dir = ""
-            workspace = []
-            self.listWidget.clear()
+        if object_name and name != object_name:
+            self._reset_active_action()
 
         object_name = name
-        object_slug = self._safe_object_slug(name)
         input_object = target_id
 
         self.label_object.setText(object_name)
         self.label_target.setText(f"person {input_object}")
+        self._refresh_object_annotations()
         self.btn_track.setEnabled(True)
         self.btn_track.setText("Start Tracking\n(Space)" if not tracking else "Resume\n(Space)")
 
         if was_playing and pause:
             self.space_key()
-        return
 
     def target_change(self):
         global input_object
@@ -631,9 +605,7 @@ class AnnotationWindow(QMainWindow, form_class):
         global set_speed
         global tracking
         global workspace
-        global writing_dir
         global object_name
-        global object_slug
 
         if pause:
             pass
@@ -643,21 +615,14 @@ class AnnotationWindow(QMainWindow, form_class):
         reply = QMessageBox.question(self, 'Reset', 'Do you want to proceed?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
-            if workspace and writing_dir:
-                self.make_json()
-
             tracking = False
             stop_requested = True
             set_speed = 1.0
-            self.active_action = None
-            self.btn_action_toggle.setChecked(False)
-            self.btn_action_toggle.setText("Action Start (B)")
-            self.btn_action_toggle.setToolTip("")
+            self._reset_active_action()
             self.label.setText("File Path")
             self.label_object.setText("None")
             self.label_target.setText("None")
             object_name = ""
-            object_slug = ""
             self._update_speed_label()
             self.label_show_label.setText("")
             if os.path.isfile("./captured/frame.jpg"):
@@ -683,7 +648,7 @@ class AnnotationWindow(QMainWindow, form_class):
             self.horizontalSlider.setEnabled(False)
             self.listWidget.clear()
             workspace = []
-            writing_dir = ""
+            self.annotation_session.clear()
             return
         else:
             if end:
@@ -722,7 +687,7 @@ class AnnotationWindow(QMainWindow, form_class):
         return
 
     def open_folder(self):
-        path = os.path.abspath("./captured")
+        path = self.annotation_session.output_path()
         os.makedirs(path, exist_ok=True)
 
         if sys.platform.startswith("win"):
@@ -731,7 +696,6 @@ class AnnotationWindow(QMainWindow, form_class):
             os.system('open "%s"' % path)
         else:
             os.system('xdg-open "%s"' % path)
-        return
 
     def target_only_view(self):
         global target_only_view
@@ -773,51 +737,45 @@ class AnnotationWindow(QMainWindow, form_class):
 
     def item_double_clicked(self):
         global jumped, jump_to_frame, end
+
         if pause:
             self.space_key()
-        else:
-            pass
-        item_index = self.listWidget.currentRow()
-        self.horizontalSlider.setValue(workspace[item_index][0])
-        jump_to_frame = self.horizontalSlider.value()
-        pixmap_small = QPixmap(writing_dir + "/%d.jpg" % workspace[item_index][0])
-        self.label_show_target.setPixmap(pixmap_small)
-        self.label_show_label.setText("%d.jpg   %s" % (workspace[item_index][0], workspace[item_index][1]))
-        jumped = True
-        end = False
-        return
 
-    def make_json(self):
-        workspace_frame_list = []
-        workspace_label_list = []
-        if workspace:
-            for i, workspace_things in enumerate(workspace):
-                workspace_frame_list.append(int(workspace_things[0]))
-                workspace_label_list.append(workspace_things[1])
-            if not pause:
-                self.space_key()
-            QMessageBox.about(self, "Save complete", "Saved at  %s " % writing_dir[:])
-        else:
+        row = self.listWidget.currentRow()
+        if row < 0 or row >= len(workspace):
             return
 
-        json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
-        json_name = object_slug or "annotations"
-        with open(os.path.join(writing_dir, f"{json_name}.json"), "w", encoding="utf-8") as json_file:
-            json.dump(json_dict, json_file, ensure_ascii=False, indent=2)
-        return
+        record = workspace[row]
+        frame = int(record["frame_number"])
+        self.horizontalSlider.setValue(frame)
+        jump_to_frame = frame
+
+        image_path = self.annotation_session.image_path(
+            record["object_name"],
+            frame,
+        )
+        self.label_show_target.setPixmap(QPixmap(image_path))
+        self.label_show_label.setText(
+            f"{os.path.basename(image_path)}   {record['action']}"
+        )
+        jumped = True
+        end = False
 
     def item_delete(self):
         global workspace
-        if self.listWidget.selectedItems():
-            item = workspace.pop(self.listWidget.currentRow())
-            os.remove(writing_dir + "/%d.jpg" % item[0])
-            self.listWidget.takeItem(self.listWidget.currentRow())
-            dummy_pixmap = QPixmap(writing_dir + "/%d.jpg" % item[0])
-            self.label_show_target.setPixmap(dummy_pixmap)
-            self.label_show_label.setText("")
+
+        row = self.listWidget.currentRow()
+        if row < 0 or row >= len(workspace):
             return
-        else:
-            return
+
+        record = workspace[row]
+        self.annotation_session.delete_annotation(
+            record["object_name"],
+            int(record["frame_number"]),
+        )
+        self._refresh_object_annotations()
+        self.label_show_target.clear()
+        self.label_show_label.setText("")
 
     def _record_action_marker(self, label):
         global workspace
@@ -825,38 +783,39 @@ class AnnotationWindow(QMainWindow, form_class):
         if objimg.size == 0:
             self.label_show_label.setText("Track Failed")
             return False
-
-        if not self._ensure_writing_dir():
+        if not object_name:
             self.label_show_label.setText("No Object")
             return False
 
         current_frame = int(framecount)
-        image = objimg.copy()
-        image_path = os.path.join(writing_dir, f"{current_frame}.jpg")
-
-        if not cv2.imwrite(image_path, image):
-            QMessageBox.warning(self, "Save failed", f"Could not save {image_path}")
+        try:
+            image_path = self.annotation_session.save_annotation(
+                object_name=object_name,
+                action=label,
+                frame_number=current_frame,
+                image=objimg,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Save failed", str(exc))
             return False
 
-        # Keep one annotation per frame, matching the original workspace model.
-        for index in range(len(workspace) - 1, -1, -1):
-            if int(workspace[index][0]) == current_frame:
-                workspace.pop(index)
-                self.listWidget.takeItem(index)
-
-        workspace.append([current_frame, label, image])
-        workspace.sort(key=lambda item: int(item[0]))
-
+        self._refresh_object_annotations()
         row = next(
-            i for i, item in enumerate(workspace)
-            if int(item[0]) == current_frame and item[1] == label
+            (
+                index
+                for index, record in enumerate(workspace)
+                if int(record["frame_number"]) == current_frame
+            ),
+            -1,
         )
-        self.listWidget.insertItem(row, f" {current_frame}    {label} ")
-        self.listWidget.setCurrentRow(row)
-        if row == len(workspace) - 1:
-            self.listWidget.scrollToBottom()
+        if row >= 0:
+            self.listWidget.setCurrentRow(row)
+            if row == len(workspace) - 1:
+                self.listWidget.scrollToBottom()
 
-        self.label_show_label.setText(f"{current_frame}.jpg   {label}")
+        self.label_show_label.setText(
+            f"{os.path.basename(image_path)}   {label}"
+        )
         self.label_show_target.setPixmap(QPixmap(image_path))
         return True
 
@@ -952,7 +911,7 @@ class AnnotationWindow(QMainWindow, form_class):
             source_fps = 30.0
         frame_interval = 1.0 / source_fps
 
-        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_preview_pending, slider_commit_pending, slider_dragging, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
+        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_preview_pending, slider_commit_pending, slider_dragging, objimg, jumped, target_changed, pause, set_speed, token, escape
 
         framecount = 0.0
         times = []  # for calculating fps
@@ -1307,8 +1266,8 @@ class AnnotationWindow(QMainWindow, form_class):
                     time.sleep(remaining)
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
+def run_app():
+    application = QApplication(sys.argv)
     window = AnnotationWindow()
     window.show()
-    sys.exit(app.exec_())
+    return application.exec_()
