@@ -42,7 +42,7 @@ end = False
 flush = False
 pause = False
 objimg = np.array([])
-set_speed = 1
+set_speed = 1.0
 target_only_view = False
 qimg_1 = QImage()
 qimg_2 = QImage()
@@ -98,6 +98,23 @@ class MainWindow(QMainWindow, form_class):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+
+        # Custom action recording state.
+        self.active_action = None
+
+        # Preserve the original 1301x751 visual layout, but scale widget
+        # geometries when the user resizes the main window.
+        self._base_central_size = QSize(self.centralwidget.size())
+        self._base_geometries = {
+            child: QRect(child.geometry())
+            for child in self.centralwidget.children()
+            if isinstance(child, QWidget)
+        }
+        self.setMinimumSize(900, 520)
+        self.label_mainscreen.setScaledContents(False)
+        self.label_mainscreen.setAlignment(Qt.AlignCenter)
+        self._current_main_image = QImage()
+
         self.previewReady.connect(self._screen_load_finished)
         self.btn_file.clicked.connect(self.file_load)
         self.btn_load.clicked.connect(self.screen_load)
@@ -136,7 +153,49 @@ class MainWindow(QMainWindow, form_class):
 
     @pyqtSlot(QImage)
     def pixmap_update(self, image):
-        self.label_mainscreen.setPixmap(QPixmap.fromImage(image))
+        self._set_main_image(image)
+
+    def _set_main_image(self, image):
+        if image is None or image.isNull():
+            self._current_main_image = QImage()
+            self.label_mainscreen.clear()
+            return
+
+        self._current_main_image = image.copy()
+        self._render_main_image()
+
+    def _render_main_image(self):
+        if self._current_main_image.isNull():
+            return
+
+        pixmap = QPixmap.fromImage(self._current_main_image)
+        pixmap = pixmap.scaled(
+            self.label_mainscreen.size(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.label_mainscreen.setPixmap(pixmap)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        if not hasattr(self, "_base_geometries"):
+            return
+
+        base_w = max(1, self._base_central_size.width())
+        base_h = max(1, self._base_central_size.height())
+        scale_x = self.centralwidget.width() / base_w
+        scale_y = self.centralwidget.height() / base_h
+
+        for widget, rect in self._base_geometries.items():
+            widget.setGeometry(
+                int(rect.x() * scale_x),
+                int(rect.y() * scale_y),
+                max(1, int(rect.width() * scale_x)),
+                max(1, int(rect.height() * scale_y)),
+            )
+
+        self._render_main_image()
 
     @pyqtSlot(int)
     def slider_control(self, int):
@@ -201,8 +260,12 @@ class MainWindow(QMainWindow, form_class):
                 return
 
     def img_load(self):
-        pixmap = QPixmap("./captured/frame.jpg")
-        self.label_mainscreen.setPixmap(pixmap)
+        image = QImage("./captured/frame.jpg")
+        if image.isNull():
+            self._current_main_image = QImage()
+            self.label_mainscreen.clear()
+        else:
+            self._set_main_image(image)
         return
 
     def screen_load(self):
@@ -322,6 +385,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_reset.setEnabled(True)
         self.btn_target.setEnabled(True)
         self.btn_up.setEnabled(True)
+        self.btn_down.setEnabled(True)
         self.btn_tab.setEnabled(True)
         self.btn_action_toggle.setEnabled(True)
         self.horizontalSlider.setEnabled(False)
@@ -760,11 +824,14 @@ class MainWindow(QMainWindow, form_class):
         if reply == QMessageBox.Yes:
             tracking = False
             flush = True
-            set_speed = 1
+            set_speed = 1.0
+            self.active_action = None
+            self.btn_action_toggle.setChecked(False)
+            self.btn_action_toggle.setText("Action Start (B)")
             self.label.setText("File Path")
             self.label_object.setText("None")
             self.label_target.setText("None")
-            self.label_speed.setText("speed  x%d " % set_speed)
+            self._update_speed_label()
             self.label_show_label.setText("")
             if os.path.isfile("./captured/frame.jpg"):
                 os.remove("./captured/frame.jpg")
@@ -806,28 +873,36 @@ class MainWindow(QMainWindow, form_class):
         global set_speed
         self.horizontalSlider.setValue(self.horizontalSlider.maximum())
         end = True
-        set_speed = 1
-        self.label_speed.setText("speed  x%d " % set_speed)
+        set_speed = 1.0
+        self._update_speed_label()
         self.btn_reset.setEnabled(True)
         # QMessageBox.about(self, "Video ended", "This is the last frame")  # focus issue don't use
         return
 
+    def _update_speed_label(self):
+        self.label_speed.setText(f"speed  x{set_speed:g} ")
+
     def speed_up(self):
-        self.btn_down.setEnabled(True)
         global set_speed
-        set_speed += 1
-        self.label_speed.setText("speed  x%d " % set_speed)
+        if set_speed < 1.0:
+            set_speed = 1.0
+        else:
+            set_speed += 1.0
+        self.btn_down.setEnabled(True)
+        self._update_speed_label()
         return
 
     def speed_down(self):
         global set_speed
-        if set_speed == 2:
-            set_speed = 1
-            self.label_speed.setText("speed  x%d " % set_speed)
-            self.btn_down.setEnabled(False)
+        if set_speed > 1.0:
+            set_speed -= 1.0
+        elif set_speed == 1.0:
+            set_speed = 0.5
+        else:
             return
-        set_speed -= 1
-        self.label_speed.setText("speed  x%d " % set_speed)
+
+        self.btn_down.setEnabled(set_speed > 0.5)
+        self._update_speed_label()
         return
 
     def open_folder(self):
@@ -853,7 +928,7 @@ class MainWindow(QMainWindow, form_class):
             return
 
         target_only_view = not target_only_view
-        self.label_mainscreen.setPixmap(QPixmap.fromImage(next_image))
+        self._set_main_image(next_image)
         return
 
     def slider_pressed(self):
@@ -921,35 +996,84 @@ class MainWindow(QMainWindow, form_class):
         else:
             return
 
-    def record_action_toggle(self):
-        global button_checkable
-        global toggle_button
+    def _record_action_marker(self, label):
         global workspace
-        global w_checked, r_checked, s_checked
 
-        toggle_button = self.btn_action_toggle.isChecked()
-        if toggle_button:
-            button_checkable = True
-            self.btn_action_toggle.setText("Action End (B)")
+        if objimg.size == 0 or not writing_dir:
+            self.label_show_label.setText("Track Failed")
+            return False
+
+        current_frame = int(framecount)
+        image = objimg.copy()
+        image_path = os.path.join(writing_dir, f"{current_frame}.jpg")
+
+        if not cv2.imwrite(image_path, image):
+            QMessageBox.warning(self, "Save failed", f"Could not save {image_path}")
+            return False
+
+        # Keep one annotation per frame, matching the original workspace model.
+        for index in range(len(workspace) - 1, -1, -1):
+            if int(workspace[index][0]) == current_frame:
+                workspace.pop(index)
+                self.listWidget.takeItem(index)
+
+        workspace.append([current_frame, label, image])
+        workspace.sort(key=lambda item: int(item[0]))
+
+        row = next(
+            i for i, item in enumerate(workspace)
+            if int(item[0]) == current_frame and item[1] == label
+        )
+        self.listWidget.insertItem(row, f" {current_frame}    {label} ")
+        self.listWidget.setCurrentRow(row)
+        if row == len(workspace) - 1:
+            self.listWidget.scrollToBottom()
+
+        self.label_show_label.setText(f"{current_frame}.jpg   {label}")
+        self.label_show_target.setPixmap(QPixmap(image_path))
+        return True
+
+    def record_action_toggle(self):
+        checked = self.btn_action_toggle.isChecked()
+
+        if checked:
+            action, ok = QInputDialog.getText(
+                self,
+                "Action name",
+                "Action name:",
+            )
+            action = action.strip()
+
+            if not ok or not action:
+                self.btn_action_toggle.setChecked(False)
+                self.btn_action_toggle.setText("Action Start (B)")
+                return
+
+            if not self._record_action_marker(f"start_{action}"):
+                self.btn_action_toggle.setChecked(False)
+                self.btn_action_toggle.setText("Action Start (B)")
+                return
+
+            self.active_action = action
+            self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
             self.btn_action_toggle.setShortcut('b')
             return
-        else:
+
+        if self.active_action is None:
             self.btn_action_toggle.setText("Action Start (B)")
-            self.btn_action_toggle.setShortcut('b')
-            if w_checked:
-                w_checked = False
-                self.w_key()
-
-            elif r_checked:
-                r_checked = False
-                self.r_key()
-
-            elif s_checked:
-                s_checked = False
-                self.s_key()
-
-            button_checkable = False
             return
+
+        if not self._record_action_marker(f"end_{self.active_action}"):
+            # Tracking may be temporarily lost. Keep the action open so the
+            # user can end it on a later valid frame.
+            self.btn_action_toggle.setChecked(True)
+            self.btn_action_toggle.setText(f"Action End: {self.active_action}\n(B)")
+            return
+
+        self.active_action = None
+        self.btn_action_toggle.setText("Action Start (B)")
+        self.btn_action_toggle.setShortcut('b')
+        return
 
     def keyPressEvent(self, e):
         global w_checked, r_checked, s_checked
@@ -1122,7 +1246,7 @@ class MainWindow(QMainWindow, form_class):
                             escape = 0
                         pass
                     else:
-                        for i in range(set_speed - 1):
+                        for i in range(max(0, int(set_speed) - 1))
                             ret, img = vid.read()
                             signal.slider_run(vid.get(cv2.CAP_PROP_POS_FRAMES))
                             framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
@@ -1186,7 +1310,7 @@ class MainWindow(QMainWindow, form_class):
                 continue
 
             # Backend modernization: keep the original worker-thread/UI flow,
-            # but delegate detection + ID tracking to YOLO26 + ByteTrack.
+            # but delegate detection + ID tracking to YOLO26s + BoT-SORT ReID.
             tracked_bboxes = tracker.track_frame(
                 original_image,
                 conf=score_threshold,
@@ -1270,7 +1394,12 @@ class MainWindow(QMainWindow, form_class):
             # playback at the source video FPS. Existing frame skipping still
             # provides the original integer speed-up behavior.
             if not pause and jump_count is None:
-                remaining = frame_interval - (time.perf_counter() - loop_started)
+                playback_interval = (
+                    frame_interval / set_speed
+                    if set_speed < 1.0
+                    else frame_interval
+                )
+                remaining = playback_interval - (time.perf_counter() - loop_started)
                 if remaining > 0:
                     time.sleep(remaining)
 
