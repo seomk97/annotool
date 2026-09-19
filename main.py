@@ -1,4 +1,6 @@
 import os
+import colorsys
+import random
 
 import cv2
 import numpy as np
@@ -101,69 +103,74 @@ def draw_bbox(
     show_label=True,
     show_confidence=True,
     Text_colors=(255, 255, 0),
-    rectangle_colors="",
+    rectangle_colors='',
     tracking=False,
 ):
-    """Draw boxes using the legacy annotool bbox layout."""
-    class_names = NUM_CLASS if CLASSES == YOLO_COCO_CLASSES else read_class_names(CLASSES)
-    image_h, image_w = image.shape[:2]
-    bbox_thick = max(1, int(0.6 * (image_h + image_w) / 1000))
-    font_scale = 0.75 * bbox_thick
+    """Legacy annotool renderer kept for UI compatibility."""
+    num_class = read_class_names(CLASSES)
+    num_classes = len(num_class)
+    image_h, image_w, _ = image.shape
+
+    hsv_tuples = [(1.0 * x / num_classes, 1.0, 1.0) for x in range(num_classes)]
+    colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+    colors = list(
+        map(
+            lambda x: (
+                int(x[0] * 255),
+                int(x[1] * 255),
+                int(x[2] * 255),
+            ),
+            colors,
+        )
+    )
+
+    random.seed(0)
+    random.shuffle(colors)
 
     for bbox in bboxes:
-        if len(bbox) < 6:
-            continue
+        coor = np.array(bbox[:4], dtype=np.int32)
+        score = bbox[4]
+        class_ind = int(bbox[5])
+        bbox_color = rectangle_colors if rectangle_colors != '' else colors[class_ind]
+        bbox_thick = int(0.6 * (image_h + image_w) / 1000)
+        if bbox_thick < 1:
+            bbox_thick = 1
+        font_scale = 0.75 * bbox_thick
 
-        x1, y1, x2, y2 = [int(v) for v in bbox[:4]]
-        value = bbox[4]
-        class_id = int(bbox[5])
-
-        bbox_color = rectangle_colors if rectangle_colors != "" else (0, 255, 0)
+        (x1, y1), (x2, y2) = (coor[0], coor[1]), (coor[2], coor[3] + 3)
         cv2.rectangle(image, (x1, y1), (x2, y2), bbox_color, bbox_thick * 2)
 
-        if not show_label:
-            continue
+        if show_label:
+            score_str = " {:.2f}".format(score) if show_confidence else ""
+            if tracking:
+                score_str = " " + str(int(score))
 
-        class_name = class_names.get(class_id, str(class_id))
-        if tracking:
-            label = f"{class_name} {int(value)}"
-        else:
-            suffix = f" {float(value):.2f}" if show_confidence else ""
-            label = f"{class_name}{suffix}"
-
-        (text_width, text_height), baseline = cv2.getTextSize(
-            label,
-            cv2.FONT_HERSHEY_COMPLEX_SMALL,
-            font_scale,
-            thickness=bbox_thick,
-        )
-        top = max(0, y1 - text_height - baseline)
-        cv2.rectangle(
-            image,
-            (x1, top),
-            (x1 + text_width, y1),
-            bbox_color,
-            thickness=cv2.FILLED,
-        )
-        cv2.putText(
-            image,
-            label,
-            (x1, max(text_height, y1 - 4)),
-            cv2.FONT_HERSHEY_COMPLEX_SMALL,
-            font_scale,
-            Text_colors,
-            bbox_thick,
-            lineType=cv2.LINE_AA,
-        )
+            label = "{}".format(num_class[class_ind]) + score_str
+            (text_width, text_height), baseline = cv2.getTextSize(
+                label,
+                cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                font_scale,
+                thickness=bbox_thick,
+            )
+            cv2.rectangle(
+                image,
+                (x1, y1),
+                (x1 + text_width, y1 - text_height - baseline),
+                bbox_color,
+                thickness=cv2.FILLED,
+            )
+            cv2.putText(
+                image,
+                label,
+                (x1, y1 - 4),
+                cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                font_scale,
+                Text_colors,
+                bbox_thick,
+                lineType=cv2.LINE_AA,
+            )
 
     return image
-
-
-tracker = YOLOByteTracker()
-# Historical qt.py imports this name. Keep it as an alias so button/thread code
-# does not need to know about the backend migration.
-yolo = tracker
-
 
 def Object_tracking(
     model,
