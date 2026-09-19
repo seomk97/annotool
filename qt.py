@@ -62,11 +62,11 @@ w_checked = False
 r_checked = False
 s_checked = False
 
-score_threshold = 0.10
+score_threshold = 0.05
 iou_threshold = 0.70
 CLASSES = YOLO_COCO_CLASSES
 
-# The YOLO26s + BoT-SORT ReID adapter is imported from main.py as `tracker`.
+# The YOLO26s + TrackTrack ReID adapter is imported from main.py as `tracker`.
 # Keep detector/tracker state outside the Qt button/signal state machine.
 
 class SignalOfTrack(QObject):
@@ -94,6 +94,7 @@ class SignalOfTrack(QObject):
 
 class MainWindow(QMainWindow, form_class):
     previewReady = pyqtSignal(bool, str)
+    previewProgress = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -119,8 +120,12 @@ class MainWindow(QMainWindow, form_class):
         self.label_mainscreen.setScaledContents(False)
         self.label_mainscreen.setAlignment(Qt.AlignCenter)
         self._current_main_image = QImage()
+        self._load_dialog = None
+        self._model_prepare_started = False
+        self._model_prepare_error = None
 
         self.previewReady.connect(self._screen_load_finished)
+        self.previewProgress.connect(self._update_load_progress)
         self.btn_file.clicked.connect(self.file_load)
         self.btn_load.clicked.connect(self.screen_load)
         self.btn_object.clicked.connect(self.object_select)
@@ -252,6 +257,13 @@ class MainWindow(QMainWindow, form_class):
             self.horizontalSlider.setMaximum(num_of_frame)
             self.label_end_frame.setText('%d' % num_of_frame)
             temp_vid.release()
+
+            if not yolo.is_prepared and not self._model_prepare_started:
+                self._model_prepare_started = True
+                threading.Thread(
+                    target=self._prepare_model_background,
+                    daemon=True,
+                ).start()
         else:
             pass
         if not video_path:
@@ -263,6 +275,14 @@ class MainWindow(QMainWindow, form_class):
                 self.btn_load.setEnabled(True)
                 self.btn_reset.setEnabled(True)
                 return
+
+    def _prepare_model_background(self):
+        try:
+            yolo.prepare()
+        except Exception as exc:
+            self._model_prepare_error = str(exc)
+        finally:
+            self._model_prepare_started = False
 
     def img_load(self):
         image = QImage("./captured/frame.jpg")
@@ -279,15 +299,37 @@ class MainWindow(QMainWindow, form_class):
         flush = False
         pause = False
 
-        # Model initialization / first CUDA inference can take long enough for
-        # Windows to mark the Qt window as "Not Responding". Keep it off the
-        # GUI thread and report completion through a queued Qt signal.
         self.btn_load.setEnabled(False)
         self.btn_object.setEnabled(False)
+
+        self._load_dialog = QProgressDialog(
+            "Preparing model...",
+            None,
+            0,
+            0,
+            self,
+        )
+        self._load_dialog.setWindowTitle("Loading video")
+        self._load_dialog.setWindowModality(Qt.WindowModal)
+        self._load_dialog.setMinimumDuration(0)
+        self._load_dialog.setAutoClose(False)
+        self._load_dialog.setAutoReset(False)
+        self._load_dialog.setCancelButton(None)
+        self._load_dialog.show()
+
         threading.Thread(target=self._screen_load_worker, daemon=True).start()
+
+    @pyqtSlot(str)
+    def _update_load_progress(self, message):
+        if self._load_dialog is not None:
+            self._load_dialog.setLabelText(message)
 
     def _screen_load_worker(self):
         try:
+            self.previewProgress.emit("Loading model / tracker...")
+            yolo.prepare(progress=self.previewProgress.emit)
+
+            self.previewProgress.emit("Reading and tracking first frame...")
             Object_tracking(
                 yolo,
                 video_path[0],
@@ -298,12 +340,19 @@ class MainWindow(QMainWindow, form_class):
                 rectangle_colors=(255, 0, 0),
                 Track_only=["person"],
             )
+
+            self.previewProgress.emit("Rendering preview...")
             self.previewReady.emit(True, "")
         except Exception as exc:
             self.previewReady.emit(False, str(exc))
 
     @pyqtSlot(bool, str)
     def _screen_load_finished(self, ok, error):
+        if self._load_dialog is not None:
+            self._load_dialog.close()
+            self._load_dialog.deleteLater()
+            self._load_dialog = None
+
         if not ok:
             self.btn_load.setEnabled(True)
             QMessageBox.critical(self, "Preview failed", error)
@@ -885,28 +934,19 @@ class MainWindow(QMainWindow, form_class):
         return
 
     def _update_speed_label(self):
-        self.label_speed.setText(f"speed  x{set_speed:g} ")
+        self.label_speed.setText(f"speed  x{set_speed:.1f} ")
 
     def speed_up(self):
         global set_speed
-        if set_speed < 1.0:
-            set_speed = 1.0
-        else:
-            set_speed += 1.0
-        self.btn_down.setEnabled(True)
+        set_speed = round(set_speed + 0.1, 1)
+        self.btn_down.setEnabled(set_speed > 0.1)
         self._update_speed_label()
         return
 
     def speed_down(self):
         global set_speed
-        if set_speed > 1.0:
-            set_speed -= 1.0
-        elif set_speed == 1.0:
-            set_speed = 0.5
-        else:
-            return
-
-        self.btn_down.setEnabled(set_speed > 0.5)
+        set_speed = max(0.1, round(set_speed - 0.1, 1))
+        self.btn_down.setEnabled(set_speed > 0.1)
         self._update_speed_label()
         return
 
@@ -1161,6 +1201,7 @@ class MainWindow(QMainWindow, form_class):
         ret = 0
         img = 0
         last_action_enabled = None
+        speed_skip_accumulator = 0.0
         while True:
 
             loop_started = time.perf_counter()
@@ -1263,13 +1304,19 @@ class MainWindow(QMainWindow, form_class):
                             escape = 0
                         pass
                     else:
-                        for i in range(max(0, int(set_speed) - 1)):
+                        speed_skip_accumulator += set_speed - 1.0
+                        frames_to_skip = int(speed_skip_accumulator)
+                        speed_skip_accumulator -= frames_to_skip
+
+                        for _ in range(frames_to_skip):
                             ret, img = vid.read()
+                            if not ret:
+                                break
                             signal.slider_run(vid.get(cv2.CAP_PROP_POS_FRAMES))
                             framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
             else:
-                pass
+                speed_skip_accumulator = 0.0
 
             while pause:
                 if slider_moved:
@@ -1406,10 +1453,9 @@ class MainWindow(QMainWindow, form_class):
             fps2 = int(fps)
             print(framecount, ", fps:", fps2)
 
-            # The legacy detector was slow enough to pace playback naturally.
-            # The modern backend is much faster, so explicitly preserve 1x
-            # playback at the source video FPS. Existing frame skipping still
-            # provides the original integer speed-up behavior.
+            # Pace sub-1x speeds by time and use an accumulator above 1x so
+            # fractional speeds such as 1.1x and 1.7x advance the source
+            # timeline accurately on average.
             if not pause and jump_count is None:
                 playback_interval = (
                     frame_interval / set_speed
