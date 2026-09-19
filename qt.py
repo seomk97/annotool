@@ -1366,45 +1366,22 @@ class MainWindow(QMainWindow, form_class):
             global framecount, qimg_1, qimg_2, objimg, slider_moved
 
             target_frame = max(0, int(target_frame))
-
-            # TrackTrack is temporal. A single isolated frame after reset can
-            # legitimately produce no stable track, so rebuild a short local
-            # history before rendering the requested paused frame.
-            warmup_frames = 8
-            warmup_start = max(0, target_frame - warmup_frames)
-
+            vid.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
             tracker.reset()
-            vid.set(cv2.CAP_PROP_POS_FRAMES, warmup_start)
 
-            seek_image = None
-            tracked = []
-            current_frame = warmup_start
-
-            while current_frame <= target_frame:
-                ok, candidate_frame = vid.read()
-                if not ok or candidate_frame is None:
-                    break
-
-                tracked = tracker.track_frame(
-                    candidate_frame,
-                    conf=score_threshold,
-                    iou=iou_threshold,
-                    classes=[0],
-                    preferred_track_id=input_object,
-                )
-                seek_image = candidate_frame
-
-                if current_frame >= target_frame:
-                    break
-                current_frame += 1
-
-            if seek_image is None:
+            ok, seek_image = vid.read()
+            if not ok or seek_image is None:
                 slider_moved = False
                 return
 
-            # OpenCV is now positioned immediately after the requested frame,
-            # which is exactly where Resume should continue.
             framecount = target_frame
+            tracked = tracker.track_frame(
+                seek_image,
+                conf=score_threshold,
+                iou=iou_threshold,
+                classes=[0],
+                preferred_track_id=input_object,
+            )
 
             target_box = None
             other_boxes = []
@@ -1440,6 +1417,7 @@ class MainWindow(QMainWindow, form_class):
                     tracking=True,
                 )
                 signal.btn_run('btn_action_toggle', True)
+                signal.btn_run('btn_action_snapshot', True)
             else:
                 objimg = np.array([])
                 target_only = base.copy()
@@ -1450,6 +1428,7 @@ class MainWindow(QMainWindow, form_class):
                     tracking=True,
                 )
                 signal.btn_run('btn_action_toggle', False)
+                signal.btn_run('btn_action_snapshot', False)
 
             h_img, w_img, ch = target_only.shape
             bytes_per_line = ch * w_img
@@ -1521,6 +1500,7 @@ class MainWindow(QMainWindow, form_class):
                 jump_count += 1
                 signal.btn_run('btn_play', False)
                 signal.btn_run('btn_action_toggle', False)
+                signal.btn_run('btn_action_snapshot', False)
                 signal.btn_run('btn_tab', False)
                 signal.btn_run('btn_object', False)
                 signal.btn_run('btn_target', False)
@@ -1679,6 +1659,7 @@ class MainWindow(QMainWindow, form_class):
             action_enabled = bool(copied_tracked_bboxes)
             if action_enabled != last_action_enabled:
                 signal.btn_run('btn_action_toggle', action_enabled)
+                signal.btn_run('btn_action_snapshot', action_enabled)
                 last_action_enabled = action_enabled
 
             if not copied_tracked_bboxes:
