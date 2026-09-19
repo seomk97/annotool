@@ -379,6 +379,12 @@ class MainWindow(QMainWindow, form_class):
             QMessageBox.critical(self, "Video read failed", "Could not decode the first frame.")
             return
 
+        try:
+            first_frame = preprocess_frame(first_frame)
+        except Exception as exc:
+            QMessageBox.critical(self, "Fisheye calibration failed", str(exc))
+            return
+
         h, w, ch = first_frame.shape
         qimg = QImage(
             first_frame.data,
@@ -1411,6 +1417,7 @@ class MainWindow(QMainWindow, form_class):
             if not ok or seek_image is None:
                 return
 
+            seek_image = preprocess_frame(seek_image)
             framecount = target_frame
             tracked = tracker.track_frame(
                 seek_image,
@@ -1556,6 +1563,7 @@ class MainWindow(QMainWindow, form_class):
                             vid.set(cv2.CAP_PROP_POS_FRAMES, preview_target)
                             ret, img = vid.read()
                             if ret:
+                                img = preprocess_frame(img)
                                 h, w, ch = img.shape
                                 bytesPerLine = ch * w
                                 qimg_3 = QImage(
@@ -1610,6 +1618,7 @@ class MainWindow(QMainWindow, form_class):
                     vid.set(cv2.CAP_PROP_POS_FRAMES, preview_target)
                     ret, img = vid.read()
                     if ret:
+                        img = preprocess_frame(img)
                         h, w, ch = img.shape
                         bytesPerLine = ch * w
                         qimg_3 = QImage(
@@ -1650,7 +1659,7 @@ class MainWindow(QMainWindow, form_class):
             if jumped:
                 continue
 
-            original_image = img
+            original_image = preprocess_frame(img) if ret else img
             signal.slider_run(framecount)
 
             if not ret:
