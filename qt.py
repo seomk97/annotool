@@ -1034,46 +1034,58 @@ class MainWindow(QMainWindow, form_class):
         return True
 
     def record_action_toggle(self):
+        global pause
+
         checked = self.btn_action_toggle.isChecked()
+        was_playing = not pause
 
-        if checked:
-            action, ok = QInputDialog.getText(
-                self,
-                "Action name",
-                "Action name:",
-            )
-            action = action.strip()
+        # Freeze the exact frame while the user types the action name or ends
+        # an action. Resume automatically if playback was running before.
+        if was_playing:
+            self.space_key()
 
-            if not ok or not action:
-                self.btn_action_toggle.setChecked(False)
+        try:
+            if checked:
+                action, ok = QInputDialog.getText(
+                    self,
+                    "Action name",
+                    "Action name:",
+                )
+                action = action.strip()
+
+                if not ok or not action:
+                    self.btn_action_toggle.setChecked(False)
+                    self.btn_action_toggle.setText("Action Start (B)")
+                    return
+
+                if not self._record_action_marker(f"start_{action}"):
+                    self.btn_action_toggle.setChecked(False)
+                    self.btn_action_toggle.setText("Action Start (B)")
+                    return
+
+                self.active_action = action
+                self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
+                self.btn_action_toggle.setShortcut('b')
+                return
+
+            if self.active_action is None:
                 self.btn_action_toggle.setText("Action Start (B)")
                 return
 
-            if not self._record_action_marker(f"start_{action}"):
-                self.btn_action_toggle.setChecked(False)
-                self.btn_action_toggle.setText("Action Start (B)")
+            if not self._record_action_marker(f"end_{self.active_action}"):
+                # Tracking may be temporarily lost. Keep the action open so the
+                # user can end it on a later valid frame.
+                self.btn_action_toggle.setChecked(True)
+                self.btn_action_toggle.setText(f"Action End: {self.active_action}\n(B)")
                 return
 
-            self.active_action = action
-            self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
+            self.active_action = None
+            self.btn_action_toggle.setText("Action Start (B)")
             self.btn_action_toggle.setShortcut('b')
             return
-
-        if self.active_action is None:
-            self.btn_action_toggle.setText("Action Start (B)")
-            return
-
-        if not self._record_action_marker(f"end_{self.active_action}"):
-            # Tracking may be temporarily lost. Keep the action open so the
-            # user can end it on a later valid frame.
-            self.btn_action_toggle.setChecked(True)
-            self.btn_action_toggle.setText(f"Action End: {self.active_action}\n(B)")
-            return
-
-        self.active_action = None
-        self.btn_action_toggle.setText("Action Start (B)")
-        self.btn_action_toggle.setShortcut('b')
-        return
+        finally:
+            if was_playing and pause:
+                self.space_key()
 
     def keyPressEvent(self, e):
         global w_checked, r_checked, s_checked
