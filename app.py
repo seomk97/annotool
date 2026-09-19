@@ -652,6 +652,7 @@ class AnnotationWindow(QMainWindow, form_class):
             self.active_action = None
             self.btn_action_toggle.setChecked(False)
             self.btn_action_toggle.setText("Action Start (B)")
+            self.btn_action_toggle.setToolTip("")
             self.label.setText("File Path")
             self.label_object.setText("None")
             self.label_target.setText("None")
@@ -912,7 +913,8 @@ class AnnotationWindow(QMainWindow, form_class):
                     return
 
                 self.active_action = action
-                self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
+                self.btn_action_toggle.setText("Action End (B)")
+                self.btn_action_toggle.setToolTip(action)
                 return
 
             if self.active_action is None:
@@ -923,11 +925,12 @@ class AnnotationWindow(QMainWindow, form_class):
                 # Tracking may be temporarily lost. Keep the action open so the
                 # user can end it on a later valid frame.
                 self.btn_action_toggle.setChecked(True)
-                self.btn_action_toggle.setText(f"Action End: {self.active_action}\n(B)")
+                self.btn_action_toggle.setText("Action End (B)")
                 return
 
             self.active_action = None
             self.btn_action_toggle.setText("Action Start (B)")
+            self.btn_action_toggle.setToolTip("")
             return
         finally:
             if was_playing and pause:
