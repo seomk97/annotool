@@ -2,14 +2,14 @@
 
 영상에서 사람을 추적하면서 필요한 frame과 action 구간을 빠르게 기록하기 위해 만든 PyQt 기반 annotation tool입니다.
 
-2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + ByteTrack**으로 현대화했습니다.
+2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + BoT-SORT + ReID**으로 현대화했습니다.
 
 ## Current pipeline
 
 ```text
 Video
   → YOLO26 person detection
-  → ByteTrack object tracking
+  → BoT-SORT + ReID object tracking
   → PyQt annotation UI
   → Captured frames + JSON annotations
 ```
@@ -41,7 +41,7 @@ Video
 | 구성 요소 | 구현 |
 |---|---|
 | Object detection | Ultralytics YOLO26 |
-| Object tracking | ByteTrack |
+| Object tracking | BoT-SORT + ReID |
 | GUI | PyQt5 |
 | Video / image I/O | OpenCV |
 
@@ -56,7 +56,7 @@ Video
 - 수동 YOLO post-processing / NMS 경로
 - Deep SORT `mars-small128.pb` runtime dependency
 
-대신 `YOLOByteTracker` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
+대신 `YOLOBoT-SORT + ReIDer` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
 
 pause / slider seek / list jump 시에는 UI 상태를 초기화하지 않고 tracker state만 reset하도록 유지했습니다.
 
@@ -102,7 +102,7 @@ python qt.py
 
 `torch`와 `torchvision`은 runtime dependency로 명시되어 있으며, 깨끗한 환경에서는 `pip install -r requirements.txt`로 함께 설치됩니다. 이미 다른 Python 환경에 설치된 PyTorch가 깨져 있거나 CUDA build를 직접 선택해야 하는 경우에는 [PyTorch installation guide](https://docs.pytorch.org/get-started/locally/)에 따라 해당 환경의 PyTorch를 먼저 설치한 뒤 requirements를 설치하세요.
 
-기본 모델은 `yolo26n.pt`이며 첫 실행 시 Ultralytics가 weight를 준비합니다.
+기본 모델은 `yolo26s.pt`이며 첫 실행 시 Ultralytics가 weight를 준비합니다.
 
 다른 Ultralytics detection model을 사용하려면 환경변수로 지정할 수 있습니다.
 
@@ -176,7 +176,7 @@ Video
 
 현재 runtime:
 
-- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / ByteTrack, AGPL-3.0
+- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / BoT-SORT + ReID, AGPL-3.0
 
 Legacy backend:
 
