@@ -22,6 +22,7 @@ import sys
 import time
 import threading
 import json
+import re
 
 # Import the PyTorch/Ultralytics backend before PyQt on Windows.
 # PyTorch can fail to load c10.dll when imported after Qt DLLs.
@@ -35,8 +36,10 @@ from PyQt5.QtCore import *
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
 video_path = []
-input_object = None
-copied_input_object = None
+input_object = None          # current tracker ID shown on the video
+copied_input_object = None   # legacy initial tracker ID used by old hotkey code
+object_name = ""             # user-defined persistent object name
+object_slug = ""             # filesystem-safe object name
 framecount = 0
 end = False
 flush = False
@@ -103,6 +106,19 @@ class MainWindow(QMainWindow, form_class):
         # Custom action recording state.
         self.active_action = None
 
+        # Track Start and Play/Pause represent one user operation. Keep the
+        # historical worker/pause implementation underneath, but expose one
+        # large Start/Pause/Resume button in the UI.
+        track_rect = self.btn_track.geometry()
+        play_rect = self.btn_play.geometry()
+        self.btn_track.setGeometry(
+            track_rect.x(),
+            min(track_rect.y(), play_rect.y()),
+            play_rect.right() - track_rect.x() + 1,
+            max(track_rect.height(), play_rect.height()),
+        )
+        self.btn_play.hide()
+
         # Preserve the original 1301x751 visual layout, but scale widget
         # geometries when the user resizes the main window.
         # qtui.ui was designed for a 1301x751 main window with a 21 px
@@ -129,9 +145,8 @@ class MainWindow(QMainWindow, form_class):
         self.btn_file.clicked.connect(self.file_load)
         self.btn_load.clicked.connect(self.screen_load)
         self.btn_object.clicked.connect(self.object_select)
-        self.btn_track.clicked.connect(self.my_thread)
+        self.btn_track.clicked.connect(self.toggle_tracking)
         self.btn_reset.clicked.connect(self.q_key)
-        self.btn_play.clicked.connect(self.space_key)
         self.btn_target.clicked.connect(self.target_change)
         self.btn_up.clicked.connect(self.speed_up)
         self.btn_down.clicked.connect(self.speed_down)
@@ -149,9 +164,8 @@ class MainWindow(QMainWindow, form_class):
         self.btn_file.setShortcut('f')
         self.btn_load.setShortcut('l')
         self.btn_object.setShortcut('o')
-        self.btn_track.setShortcut('t')
+        self.btn_track.setShortcut(Qt.Key.Key_Space)
         self.btn_reset.setShortcut('q')
-        self.btn_play.setShortcut(Qt.Key.Key_Space)
         self.btn_target.setShortcut('c')
         self.btn_up.setShortcut(Qt.Key.Key_Right)
         self.btn_down.setShortcut(Qt.Key.Key_Left)
@@ -161,15 +175,6 @@ class MainWindow(QMainWindow, form_class):
         self.btn_delete.setShortcut(Qt.Key.Key_Delete)
         self.btn_action_toggle.setShortcut('b')
 
-        # Start the expensive detector/tracker warm-up as soon as the window
-        # exists. In normal use it runs while the user is choosing a video, so
-        # the first Load click usually needs only first-frame inference.
-        if not yolo.is_prepared and not self._model_prepare_started:
-            self._model_prepare_started = True
-            threading.Thread(
-                target=self._prepare_model_background,
-                daemon=True,
-            ).start()
 
     @pyqtSlot(QImage)
     def pixmap_update(self, image):
@@ -240,7 +245,7 @@ class MainWindow(QMainWindow, form_class):
         elif str == 'btn_object':
             self.btn_object.setEnabled(bool)
         elif str == 'btn_play':
-            self.btn_play.setEnabled(bool)
+            self.btn_track.setEnabled(bool)
         elif str == 'btn_reset':
             self.btn_reset.setEnabled(bool)
         elif str == 'btn_tab':
@@ -256,29 +261,65 @@ class MainWindow(QMainWindow, form_class):
 
     def file_load(self):
         global video_path
-        video_path_buffer = QFileDialog.getOpenFileName(self, None, None, "Video files (*.mp4)")
-        if video_path_buffer[0] != '' and video_path_buffer != video_path:
-            video_path = video_path_buffer
-            self.label.setText(video_path[0])
-            self.img_load()
-            temp_vid = cv2.VideoCapture(video_path[0])
-            num_of_frame = int(temp_vid.get(cv2.CAP_PROP_FRAME_COUNT))
-            self.horizontalSlider.setMinimum(0)
-            self.horizontalSlider.setMaximum(num_of_frame)
-            self.label_end_frame.setText('%d' % num_of_frame)
-            temp_vid.release()
 
-        else:
-            pass
-        if not video_path:
-            self.btn_load.setEnabled(False)
-        else:
-            if video_path_buffer[0] == '':
-                return
-            else:
-                self.btn_load.setEnabled(True)
-                self.btn_reset.setEnabled(True)
-                return
+        video_path_buffer = QFileDialog.getOpenFileName(
+            self,
+            None,
+            None,
+            "Video files (*.mp4 *.avi *.mov *.mkv)",
+        )
+        if video_path_buffer[0] == "":
+            return
+
+        video_path = video_path_buffer
+        self.label.setText(video_path[0])
+
+        # Opening a video and showing it must not wait for YOLO/tracker setup.
+        # Decode just one raw frame first and display it immediately.
+        temp_vid = cv2.VideoCapture(video_path[0])
+        if not temp_vid.isOpened():
+            QMessageBox.critical(self, "Video open failed", video_path[0])
+            return
+
+        num_of_frame = int(temp_vid.get(cv2.CAP_PROP_FRAME_COUNT))
+        ret, first_frame = temp_vid.read()
+        temp_vid.release()
+
+        if not ret or first_frame is None:
+            QMessageBox.critical(self, "Video read failed", "Could not decode the first frame.")
+            return
+
+        h, w, ch = first_frame.shape
+        qimg = QImage(
+            first_frame.data,
+            w,
+            h,
+            ch * w,
+            QImage.Format_RGB888,
+        ).rgbSwapped().copy()
+        self._set_main_image(qimg)
+
+        self.horizontalSlider.setMinimum(0)
+        self.horizontalSlider.setMaximum(max(0, num_of_frame))
+        self.horizontalSlider.setValue(0)
+        self.label_end_frame.setText(str(num_of_frame))
+
+        # "Load" now means detect/overlay tracker IDs on the first frame.
+        self.btn_load.setText("Detect IDs (L)")
+        self.btn_load.setEnabled(True)
+        self.btn_reset.setEnabled(True)
+        self.btn_object.setEnabled(False)
+
+        # Only after the raw video is visible do we spend resources preparing
+        # the tracking backend.
+        if not yolo.is_prepared and not self._model_prepare_started:
+            self._model_prepare_started = True
+            threading.Thread(
+                target=self._prepare_model_background,
+                daemon=True,
+            ).start()
+
+        return
 
     def _prepare_model_background(self):
         try:
@@ -368,78 +409,109 @@ class MainWindow(QMainWindow, form_class):
         self.btn_object.setEnabled(True)
         self.btn_reset.setEnabled(True)
 
+    @staticmethod
+    def _safe_object_slug(name):
+        slug = re.sub(r'[<>:"/\\|?*]+', "_", name).strip().strip(".")
+        return slug or "object"
+
     def object_select(self):
         global input_object
         global copied_input_object
+        global object_name
+        global object_slug
         global pause
         global writing_dir
         global workspace
 
-        if not tracking:
-            input_object, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
-            copied_input_object = input_object
-            if ok:
-                self.label_object.setText('obj ' + str(copied_input_object))
-                self.label_target.setText('person ' + str(input_object))
-                self.btn_track.setEnabled(True)
-            else:
-                input_object = None
-                self.label_object.setText("None")
-                self.label_target.setText("None")
-                self.btn_track.setEnabled(False)
-                return
+        was_playing = tracking and not pause
+        if was_playing:
+            self.space_key()
 
-        if tracking:
-            if pause:
-                pass
-            else:
+        name, ok = QInputDialog.getText(
+            self,
+            "Object Name",
+            "Object name:",
+            text=object_name,
+        )
+        name = name.strip()
+        if not ok or not name:
+            if was_playing and pause:
                 self.space_key()
+            return
 
-            input_object_2, ok = QInputDialog.getInt(self, 'Object Select', 'Please input Object number')
-            if ok:
-                if input_object != input_object_2:
-                    self.make_json()
-                    writing_dir = ""
-                    workspace = []
-                    self.listWidget.clear()
-                else:
-                    pass
-                input_object = input_object_2
-                copied_input_object = input_object
-                self.label_object.setText('obj ' + str(input_object))
-                self.label_target.setText('person ' + str(input_object))
+        target_id, ok = QInputDialog.getInt(
+            self,
+            "Target ID",
+            "Current box / track ID:",
+            value=input_object if input_object is not None else 1,
+            min=0,
+        )
+        if not ok:
+            if was_playing and pause:
                 self.space_key()
-            else:
-                return
+            return
+
+        # Selecting a different logical object starts a separate annotation
+        # workspace. Changing only the tracker ID is handled by Target ID.
+        if tracking and object_name and name != object_name:
+            self.make_json()
+            writing_dir = ""
+            workspace = []
+            self.listWidget.clear()
+
+        object_name = name
+        object_slug = self._safe_object_slug(name)
+        input_object = target_id
+        copied_input_object = target_id
+
+        self.label_object.setText(object_name)
+        self.label_target.setText(f"person {input_object}")
+        self.btn_track.setEnabled(True)
+        self.btn_track.setText("Start Tracking\n(space)" if not tracking else "Resume\n(space)")
+
+        if was_playing and pause:
+            self.space_key()
+        return
 
     def target_change(self):
         global input_object
         global pause
         global target_changed
 
-        if pause:
-            pass
-        else:
+        was_playing = tracking and not pause
+        if was_playing:
             self.space_key()
 
-        input_object_2, ok = QInputDialog.getInt(self, 'Changing Target', 'Please input desired target number')
+        input_object_2, ok = QInputDialog.getInt(
+            self,
+            "Target ID",
+            "Current box / track ID:",
+            value=input_object if input_object is not None else 1,
+            min=0,
+        )
         if ok:
             input_object = input_object_2
-            self.label_target.setText('person ' + str(input_object))
-            target_changed = 1  # target_change state flag
+            self.label_target.setText(f"person {input_object}")
+            target_changed = 1
+
+        if was_playing and pause:
+            self.space_key()
+        return
+
+    def toggle_tracking(self):
+        if not self.btn_track.isEnabled():
             return
+
+        if not tracking:
+            self.my_thread()
         else:
-            return
+            self.space_key()
 
     def my_thread(self):
         self.centralwidget.setFocus()
         self.btn_file.setEnabled(False)
-        self.btn_track.setChecked(True)
-        self.btn_track.setEnabled(False)
-        self.btn_play.setChecked(True)
-        self.btn_play.setEnabled(True)
-        self.btn_play.setText('Pause\n(space)')
-        self.btn_play.setShortcut(Qt.Key.Key_Space)
+        self.btn_track.setEnabled(True)
+        self.btn_track.setText("Pause\n(space)")
         self.btn_reset.setEnabled(True)
         self.btn_target.setEnabled(True)
         self.btn_up.setEnabled(True)
@@ -847,15 +919,11 @@ class MainWindow(QMainWindow, form_class):
     def _apply_pause_ui(self, paused):
         if paused:
             self.horizontalSlider.setEnabled(True)
-            self.btn_play.setChecked(False)
-            self.btn_play.setText('Play\n(space)')
-            self.btn_play.setShortcut(Qt.Key.Key_Space)
+            self.btn_track.setText("Resume\n(space)")
             self.centralwidget.setFocus()
         else:
             self.horizontalSlider.setEnabled(False)
-            self.btn_play.setChecked(True)
-            self.btn_play.setText('Pause\n(space)')
-            self.btn_play.setShortcut(Qt.Key.Key_Space)
+            self.btn_track.setText("Pause\n(space)")
             self.btn_tab.setEnabled(True)
 
     def q_key(self):
@@ -871,6 +939,8 @@ class MainWindow(QMainWindow, form_class):
         global tracking
         global workspace
         global writing_dir
+        global object_name
+        global object_slug
 
         if pause:
             pass
@@ -889,6 +959,8 @@ class MainWindow(QMainWindow, form_class):
             self.label.setText("File Path")
             self.label_object.setText("None")
             self.label_target.setText("None")
+            object_name = ""
+            object_slug = ""
             self._update_speed_label()
             self.label_show_label.setText("")
             if os.path.isfile("./captured/frame.jpg"):
@@ -899,11 +971,9 @@ class MainWindow(QMainWindow, form_class):
             self.btn_file.setEnabled(True)
             self.btn_load.setEnabled(False)
             self.btn_object.setEnabled(False)
-            self.btn_track.setChecked(False)
             self.btn_track.setEnabled(False)
+            self.btn_track.setText("Start Tracking\n(space)")
             self.btn_reset.setEnabled(False)
-            self.btn_play.setChecked(False)
-            self.btn_play.setEnabled(False)
             self.btn_target.setEnabled(False)
             self.btn_up.setEnabled(False)
             self.btn_down.setEnabled(False)
@@ -1028,8 +1098,9 @@ class MainWindow(QMainWindow, form_class):
             return
 
         json_dict = {workspace_frame_list[i]: workspace_label_list[i] for i in range(len(workspace_frame_list))}
-        with open(writing_dir + "/%d.json" % copied_input_object, "w") as json_file:
-            json.dump(json_dict, json_file)
+        json_name = object_slug or "annotations"
+        with open(os.path.join(writing_dir, f"{json_name}.json"), "w", encoding="utf-8") as json_file:
+            json.dump(json_dict, json_file, ensure_ascii=False, indent=2)
         return
 
     def item_delete(self):
@@ -1183,7 +1254,7 @@ class MainWindow(QMainWindow, form_class):
         frame_interval = 1.0 / source_fps
 
         Track_only = ['person']
-        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape
+        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
 
         # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
         # pause_flag = temporal pause handler for listwidget item double click loop event
@@ -1211,19 +1282,20 @@ class MainWindow(QMainWindow, form_class):
             loop_started = time.perf_counter()
             t1 = time.time()
 
-            if not os.path.isdir('./captured/obj%d' % copied_input_object):
-                writing_dir = "./captured/obj%d" % copied_input_object
-                os.mkdir(writing_dir)
-            else:
-                i = 1
-                while writing_dir == "":  # object changed while tracking, writing_dir becomes "" and perform loop once
-                    if os.path.isdir('./captured/obj%d_%d' % (copied_input_object, i)):
+            if writing_dir == "":
+                os.makedirs("./captured", exist_ok=True)
+                base_name = object_slug or "object"
+                base_dir = os.path.join("./captured", base_name)
+
+                if not os.path.isdir(base_dir):
+                    writing_dir = base_dir
+                else:
+                    i = 1
+                    while os.path.isdir(f"{base_dir}_{i}"):
                         i += 1
-                        continue
-                    else:
-                        writing_dir = "./captured/obj%d_%d" % (copied_input_object, i)
-                        os.mkdir(writing_dir)
-                        break
+                    writing_dir = f"{base_dir}_{i}"
+
+                os.makedirs(writing_dir, exist_ok=True)
 
             myobject = input_object
 
