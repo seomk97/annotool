@@ -51,6 +51,7 @@ qimg_1 = QImage()
 qimg_2 = QImage()
 tracking = False
 slider_moved = False
+slider_dragging = False
 jump_to_frame = 0
 workspace = []
 jumped = False
@@ -1128,20 +1129,23 @@ class MainWindow(QMainWindow, form_class):
         return
 
     def slider_pressed(self):
+        global slider_dragging
+        slider_dragging = True
         self.btn_tab.setEnabled(False)
 
     def slider_moved(self):
-        global slider_moved, jump_to_frame, end
+        global slider_moved, slider_dragging, jump_to_frame, end
+        slider_dragging = True
         slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
         end = False
 
     def slider_released(self):
-        global slider_moved, jump_to_frame, escape, objimg
-        # self.centralwidget.setFocus()
+        global slider_moved, slider_dragging, jump_to_frame, escape, objimg
+        slider_dragging = False
         slider_moved = True
         jump_to_frame = self.horizontalSlider.value()
-        escape = 1
+        escape = 0
         objimg = np.array([])
 
     def item_double_clicked(self):
@@ -1299,7 +1303,7 @@ class MainWindow(QMainWindow, form_class):
         frame_interval = 1.0 / source_fps
 
         Track_only = ['person']
-        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
+        global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, slider_dragging, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
 
         # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
         # pause_flag = temporal pause handler for listwidget item double click loop event
@@ -1322,6 +1326,95 @@ class MainWindow(QMainWindow, form_class):
         img = 0
         last_action_enabled = None
         speed_skip_accumulator = 0.0
+
+        def render_paused_seek(target_frame):
+            global framecount, qimg_1, qimg_2, objimg, slider_moved
+
+            target_frame = max(0, int(target_frame))
+            vid.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            tracker.reset()
+
+            ok, seek_image = vid.read()
+            if not ok or seek_image is None:
+                slider_moved = False
+                return
+
+            framecount = target_frame
+            tracked = tracker.track_frame(
+                seek_image,
+                conf=score_threshold,
+                iou=iou_threshold,
+                classes=[0],
+                preferred_track_id=input_object,
+            )
+
+            target_box = None
+            other_boxes = []
+            for box in tracked:
+                if box[4] == input_object and target_box is None:
+                    target_box = box
+                else:
+                    other_boxes.append(box)
+
+            base = seek_image.copy()
+            if target_box is not None:
+                x1, y1, x2, y2 = [int(v) for v in target_box[:4]]
+                margin = 17
+                h_img, w_img = seek_image.shape[:2]
+                x1c = max(0, x1 - margin)
+                y1c = max(0, y1 - margin)
+                x2c = min(w_img, x2 + margin)
+                y2c = min(h_img, y2 + margin)
+                objimg = seek_image[y1c:y2c, x1c:x2c].copy()
+
+                target_only = draw_bbox(
+                    base.copy(),
+                    [target_box],
+                    CLASSES=CLASSES,
+                    Text_colors=(255, 255, 255),
+                    rectangle_colors=(0, 128, 0),
+                    tracking=True,
+                )
+                all_boxes = draw_bbox(
+                    target_only.copy(),
+                    other_boxes,
+                    CLASSES=CLASSES,
+                    tracking=True,
+                )
+                signal.btn_run('btn_action_toggle', True)
+            else:
+                objimg = np.array([])
+                target_only = base.copy()
+                all_boxes = draw_bbox(
+                    base.copy(),
+                    tracked,
+                    CLASSES=CLASSES,
+                    tracking=True,
+                )
+                signal.btn_run('btn_action_toggle', False)
+
+            h_img, w_img, ch = target_only.shape
+            bytes_per_line = ch * w_img
+            qimg_1 = QImage(
+                target_only.data,
+                w_img,
+                h_img,
+                bytes_per_line,
+                QImage.Format_RGB888,
+            ).rgbSwapped().copy()
+            qimg_2 = QImage(
+                all_boxes.data,
+                w_img,
+                h_img,
+                bytes_per_line,
+                QImage.Format_RGB888,
+            ).rgbSwapped().copy()
+
+            signal.pixmap_run(qimg_1 if target_only_view else qimg_2)
+            signal.slider_run(target_frame)
+            signal.btn_run('btn_tab', True)
+            slider_moved = False
+
         while True:
 
             loop_started = time.perf_counter()
@@ -1394,20 +1487,24 @@ class MainWindow(QMainWindow, form_class):
                 else:
                     while pause:
                         if slider_moved:
-                            vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                            tracker.reset()
-                            ret, img = vid.read()
-                            if ret:
-                                h, w, ch = img.shape
-                                bytesPerLine = ch * w
-                                qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
-                                signal.pixmap_run(qimg_3)
-                                framecount = jump_to_frame
-                                slider_moved = False
+                            if slider_dragging:
+                                vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
+                                ret, img = vid.read()
+                                if ret:
+                                    h, w, ch = img.shape
+                                    bytesPerLine = ch * w
+                                    qimg_3 = QImage(
+                                        img.data,
+                                        w,
+                                        h,
+                                        bytesPerLine,
+                                        QImage.Format_RGB888,
+                                    ).rgbSwapped().copy()
+                                    signal.pixmap_run(qimg_3)
+                                    framecount = jump_to_frame
+                                    slider_moved = False
                             else:
-                                pass
-                        else:
-                            pass
+                                render_paused_seek(jump_to_frame)
 
                         signal.slider_run(framecount)
                         time.sleep(0.02)
@@ -1441,20 +1538,24 @@ class MainWindow(QMainWindow, form_class):
 
             while pause:
                 if slider_moved:
-                    vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                    tracker.reset()
-                    ret, img = vid.read()
-                    if ret:
-                        h, w, ch = img.shape
-                        bytesPerLine = ch * w
-                        qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
-                        signal.pixmap_run(qimg_3)
-                        framecount = jump_to_frame
-                        slider_moved = False
+                    if slider_dragging:
+                        vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
+                        ret, img = vid.read()
+                        if ret:
+                            h, w, ch = img.shape
+                            bytesPerLine = ch * w
+                            qimg_3 = QImage(
+                                img.data,
+                                w,
+                                h,
+                                bytesPerLine,
+                                QImage.Format_RGB888,
+                            ).rgbSwapped().copy()
+                            signal.pixmap_run(qimg_3)
+                            framecount = jump_to_frame
+                            slider_moved = False
                     else:
-                        pass
-                else:
-                    pass
+                        render_paused_seek(jump_to_frame)
 
                 signal.slider_run(framecount)
                 time.sleep(0.02)
