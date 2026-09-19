@@ -7,6 +7,8 @@ import torch
 from boxmot import OccluBoost
 from ultralytics import YOLO
 
+from camera import preprocess_frame
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26m.pt")
@@ -22,9 +24,6 @@ BOXMOT_DEVICE = (
 SCORE_THRESHOLD = 0.05
 NMS_IOU_THRESHOLD = 0.50
 COAST_FRAMES = int(os.environ.get("ANNOTOOL_COAST_FRAMES", "2"))
-
-
-from camera import preprocess_frame
 
 
 def _detection_iou(a, b):
@@ -86,7 +85,7 @@ def _suppress_duplicate_detections(detections):
 class PersonTracker:
     """YOLO26 detector + BoxMOT OccluBoost + OSNet person ReID adapter.
 
-    The Qt UI keeps its historical box format:
+    The UI-facing track format is:
         [x1, y1, x2, y2, track_id, class_id]
 
     YOLO performs detection only. OccluBoost owns temporal association,
@@ -143,7 +142,7 @@ class PersonTracker:
             max_age=146,
             min_hits=0,
             det_thresh=0.15,
-            NMS_IOU_THRESHOLD=0.2957128153631725,
+            iou_threshold=0.2957128153631725,
             use_cmc=True,
             cmc_method="sof",
             min_box_area=1,
