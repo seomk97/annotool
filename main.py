@@ -23,7 +23,7 @@ BOXMOT_DEVICE = (
 # Keep low-confidence person detections available to the tracker's recovery
 # stages. A larger inference size helps small/distant person detections.
 score_threshold = 0.05
-iou_threshold = 0.70
+iou_threshold = 0.50
 
 
 def read_class_names(class_file_name=YOLO_COCO_CLASSES):
@@ -35,6 +35,62 @@ def read_class_names(class_file_name=YOLO_COCO_CLASSES):
 
 
 NUM_CLASS = read_class_names()
+
+
+def _detection_iou(a, b):
+    ax1, ay1, ax2, ay2 = a[:4]
+    bx1, by1, bx2, by2 = b[:4]
+
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+
+    area_a = max(1.0, (ax2 - ax1) * (ay2 - ay1))
+    area_b = max(1.0, (bx2 - bx1) * (by2 - by1))
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _detection_containment(a, b):
+    ax1, ay1, ax2, ay2 = a[:4]
+    bx1, by1, bx2, by2 = b[:4]
+
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+
+    area_a = max(1.0, (ax2 - ax1) * (ay2 - ay1))
+    area_b = max(1.0, (bx2 - bx1) * (by2 - by1))
+    return inter / min(area_a, area_b)
+
+
+def _suppress_duplicate_detections(detections):
+    """Collapse only near-identical/nested person detections before tracking."""
+    if len(detections) <= 1:
+        return detections
+
+    order = np.argsort(-detections[:, 4])
+    kept = []
+
+    for idx in order:
+        candidate = detections[idx]
+        duplicate = False
+        for kept_det in kept:
+            if (
+                _detection_iou(candidate, kept_det) >= 0.65
+                or _detection_containment(candidate, kept_det) >= 0.90
+            ):
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(candidate)
+
+    if not kept:
+        return np.empty((0, 6), dtype=np.float32)
+
+    return np.ascontiguousarray(np.stack(kept), dtype=np.float32)
 
 
 class YOLOTrackerAdapter:
@@ -96,7 +152,7 @@ class YOLOTrackerAdapter:
             # so do not discard those detections again inside the tracker.
             max_age=146,
             min_hits=0,
-            det_thresh=0.05,
+            det_thresh=0.15,
             iou_threshold=0.2957128153631725,
             use_cmc=True,
             cmc_method="sof",
@@ -115,17 +171,17 @@ class YOLOTrackerAdapter:
             recovery_iou_thresh=0.24380051350243462,
             recovery_max_age=113,
             feat_alpha=0.8324072665785186,
-            track_low_thresh=0.01,
+            track_low_thresh=0.05,
             use_second_pass=True,
             second_iou_thresh=0.8131671757478834,
             second_appearance_thresh=0.364089272226479,
             second_pass_max_age=8,
             second_pass_min_hits=7,
-            new_track_thresh=0.05,
-            confirm_hits=1,
-            instant_confirm_thresh=0.05,
+            new_track_thresh=0.25,
+            confirm_hits=2,
+            instant_confirm_thresh=0.55,
             tentative_max_age=3,
-            duplicate_iou_thresh=0.9571823233925608,
+            duplicate_iou_thresh=0.75,
             lambda_emb_multiplier=2.9476295884842885,
             gta_enabled=False,
         )
@@ -206,10 +262,11 @@ class YOLOTrackerAdapter:
         confidence = boxes.conf.detach().cpu().numpy().astype(np.float32, copy=False)
         class_ids = boxes.cls.detach().cpu().numpy().astype(np.float32, copy=False)
 
-        return np.ascontiguousarray(
+        detections = np.ascontiguousarray(
             np.column_stack((xyxy, confidence, class_ids)),
             dtype=np.float32,
         )
+        return _suppress_duplicate_detections(detections)
 
     def track_frame(
         self,
