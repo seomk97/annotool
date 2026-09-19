@@ -402,43 +402,12 @@
      </rect>
     </property>
    </widget>
-   <widget class="QPushButton" name="btn_json">
-    <property name="enabled">
-     <bool>true</bool>
-    </property>
+   <widget class="QPushButton" name="btn_delete">
     <property name="geometry">
      <rect>
       <x>1121</x>
       <y>461</y>
-      <width>100</width>
-      <height>25</height>
-     </rect>
-    </property>
-    <property name="mouseTracking">
-     <bool>false</bool>
-    </property>
-    <property name="toolTip">
-     <string>shortcut(Insert)</string>
-    </property>
-    <property name="text">
-     <string>Make json(J)</string>
-    </property>
-    <property name="checked">
-     <bool>false</bool>
-    </property>
-    <property name="default">
-     <bool>false</bool>
-    </property>
-    <property name="flat">
-     <bool>false</bool>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btn_delete">
-    <property name="geometry">
-     <rect>
-      <x>1231</x>
-      <y>461</y>
-      <width>60</width>
+      <width>170</width>
       <height>25</height>
      </rect>
     </property>
