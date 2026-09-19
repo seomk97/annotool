@@ -316,8 +316,10 @@ class MainWindow(QMainWindow, form_class):
         self.btn_track.setChecked(True)
         self.btn_track.setEnabled(False)
         self.btn_play.setChecked(True)
+        self.btn_play.setEnabled(True)
         self.btn_play.setText('Pause\n(space)')
         self.btn_play.setShortcut(Qt.Key.Key_Space)
+        self.btn_reset.setEnabled(True)
         self.btn_target.setEnabled(True)
         self.btn_up.setEnabled(True)
         self.btn_tab.setEnabled(True)
@@ -990,6 +992,10 @@ class MainWindow(QMainWindow, form_class):
         tracker.reset()
 
         vid = cv2.VideoCapture(video_path[0])
+        source_fps = vid.get(cv2.CAP_PROP_FPS)
+        if not source_fps or source_fps <= 1 or source_fps > 240:
+            source_fps = 30.0
+        frame_interval = 1.0 / source_fps
 
         Track_only = ['person']
         global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_moved, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape
@@ -1016,6 +1022,7 @@ class MainWindow(QMainWindow, form_class):
         last_action_enabled = None
         while True:
 
+            loop_started = time.perf_counter()
             t1 = time.time()
 
             if not os.path.isdir('./captured/obj%d' % copied_input_object):
@@ -1257,6 +1264,15 @@ class MainWindow(QMainWindow, form_class):
 
             fps2 = int(fps)
             print(framecount, ", fps:", fps2)
+
+            # The legacy detector was slow enough to pace playback naturally.
+            # The modern backend is much faster, so explicitly preserve 1x
+            # playback at the source video FPS. Existing frame skipping still
+            # provides the original integer speed-up behavior.
+            if not pause and jump_count is None:
+                remaining = frame_interval - (time.perf_counter() - loop_started)
+                if remaining > 0:
+                    time.sleep(remaining)
 
 
 if __name__ == "__main__":
