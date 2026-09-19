@@ -129,15 +129,38 @@ python qt.py
 | Target | tracking ID가 변경된 경우 target 변경 |
 | Track start | worker thread에서 detection + tracking 시작 |
 | Play / Pause | 영상 재생 / 일시정지 |
-| Arrow keys | 재생 속도 조절 |
+| Arrow keys | 재생 속도 조절 (`0.5x`, `1x`, `2x` 이상) |
 | Make JSON | 현재 기록을 JSON으로 저장 |
 | Delete | 선택된 기록 삭제 |
-| Action start | action 시작 / 종료 구간 기록 |
+| Action start | 액션명을 직접 입력해 시작 프레임을 기록하고, Action End에서 종료 프레임 기록 |
 | Show target only | 선택한 target만 표시 |
 | Open folder | 저장 폴더 열기 |
 | Reset | 현재 작업 초기화 |
 
 각 버튼의 주요 shortcut은 GUI 버튼에 함께 표시됩니다.
+
+### Custom action annotation
+
+`Action Start (B)`를 누르면 액션명을 직접 입력합니다. 입력을 확정한 현재 프레임이 `start_<action>`으로 저장되고 버튼은 해당 액션의 `Action End` 상태로 바뀝니다. 종료 시점에 다시 누르면 `end_<action>`이 저장됩니다.
+
+예:
+
+```text
+Action Start → "jump"
+  → start_jump
+
+Action End
+  → end_jump
+```
+
+액션명 입력/종료 시에는 정확한 프레임을 기록하기 위해 영상이 잠시 pause되고, 원래 재생 중이었다면 자동으로 다시 재생됩니다.
+
+### Playback and window scaling
+
+- 기본 재생 속도는 `1x`이며 왼쪽 화살표로 `0.5x`까지 낮출 수 있습니다.
+- 오른쪽 화살표는 `1x → 2x → 3x ...` 순으로 올립니다.
+- 메인 창의 모서리/테두리를 드래그하면 영상 영역과 컨트롤 배치가 함께 확대·축소됩니다.
+- 영상 자체는 화면 비율을 유지해 표시합니다.
 
 ## Output
 
