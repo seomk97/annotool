@@ -2,13 +2,19 @@
 
 This project contains original annotation UI/workflow code and integrates open-source detection and tracking components.
 
-## Current runtime: Ultralytics YOLO26 + Deep OC-SORT
+## Current runtime: Ultralytics YOLO26 + BoxMOT OccluBoost + OSNet
 
-- Upstream: https://github.com/ultralytics/ultralytics
-- Used for: YOLO26 person detection and Deep OC-SORT multi-object tracking with dedicated ReID
+- Ultralytics upstream: https://github.com/ultralytics/ultralytics
+- Used for: YOLO26 person detection
 - Integration: imported as the `ultralytics` Python dependency; not vendored into this repository
 - License: GNU AGPL v3
 - License copy: [THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt](THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt)
+
+- BoxMOT upstream: https://github.com/mikel-brostrom/boxmot
+- Used for: OccluBoost multi-object tracking and OSNet x1.0 MSMT17 person ReID runtime
+- Integration: imported as the `boxmot` Python dependency; not vendored into this repository
+- License: GNU AGPL v3
+- License copy: [THIRD_PARTY_LICENSES/BoxMOT-AGPL-3.0.txt](THIRD_PARTY_LICENSES/BoxMOT-AGPL-3.0.txt)
 
 The current project is distributed under AGPL-3.0 to keep the runtime integration license-compatible.
 
