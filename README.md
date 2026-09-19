@@ -2,14 +2,14 @@
 
 영상에서 사람을 추적하면서 필요한 frame과 action 구간을 빠르게 기록하기 위해 만든 PyQt 기반 annotation tool입니다.
 
-2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + BoT-SORT + ReID**으로 현대화했습니다.
+2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + TrackTrack + ReID**으로 현대화했습니다.
 
 ## Current pipeline
 
 ```text
 Video
   → YOLO26 person detection
-  → BoT-SORT + ReID object tracking
+  → TrackTrack + ReID object tracking
   → PyQt annotation UI
   → Captured frames + JSON annotations
 ```
@@ -41,7 +41,7 @@ Video
 | 구성 요소 | 구현 |
 |---|---|
 | Object detection | Ultralytics YOLO26 |
-| Object tracking | BoT-SORT + ReID |
+| Object tracking | TrackTrack + ReID |
 | GUI | PyQt5 |
 | Video / image I/O | OpenCV |
 
@@ -56,7 +56,7 @@ Video
 - 수동 YOLO post-processing / NMS 경로
 - Deep SORT `mars-small128.pb` runtime dependency
 
-대신 `YOLOBoT-SORT + ReIDer` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
+대신 `YOLOTrackTrack + ReIDer` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
 
 pause / slider seek / list jump 시에는 UI 상태를 초기화하지 않고 tracker state만 reset하도록 유지했습니다.
 
@@ -129,7 +129,7 @@ python qt.py
 | Target | tracking ID가 변경된 경우 target 변경 |
 | Track start | worker thread에서 detection + tracking 시작 |
 | Play / Pause | 영상 재생 / 일시정지 |
-| Arrow keys | 재생 속도 조절 (`0.5x`, `1x`, `2x` 이상) |
+| Arrow keys | 재생 속도 조절 (`0.1x` 단위, 최저 `0.1x`) |
 | Make JSON | 현재 기록을 JSON으로 저장 |
 | Delete | 선택된 기록 삭제 |
 | Action start | 액션명을 직접 입력해 시작 프레임을 기록하고, Action End에서 종료 프레임 기록 |
@@ -155,10 +155,14 @@ Action End
 
 액션명 입력/종료 시에는 정확한 프레임을 기록하기 위해 영상이 잠시 pause되고, 원래 재생 중이었다면 자동으로 다시 재생됩니다.
 
+### Loading behavior
+
+첫 영상을 선택하면 YOLO26s / TrackTrack ReID backend를 백그라운드에서 미리 준비합니다. `Load`를 누르면 별도의 진행창에서 model loading, GPU / tracker initialization, first-frame tracking 단계를 표시합니다. 모델과 predictor는 애플리케이션 세션 동안 재사용하고, 영상 변경이나 seek 시에는 tracker state만 reset합니다.
+
 ### Playback and window scaling
 
-- 기본 재생 속도는 `1x`이며 왼쪽 화살표로 `0.5x`까지 낮출 수 있습니다.
-- 오른쪽 화살표는 `1x → 2x → 3x ...` 순으로 올립니다.
+- 기본 재생 속도는 `1.0x`이며 좌/우 화살표로 `0.1x` 단위로 조절합니다.
+- 최저 속도는 `0.1x`이며 `1.1x`, `1.7x` 같은 fractional speed도 지원합니다.
 - 메인 창의 모서리/테두리를 드래그하면 영상 영역과 컨트롤 배치가 함께 확대·축소됩니다.
 - 영상 자체는 화면 비율을 유지해 표시합니다.
 
@@ -199,7 +203,7 @@ Video
 
 현재 runtime:
 
-- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / BoT-SORT + ReID, AGPL-3.0
+- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / TrackTrack + ReID, AGPL-3.0
 
 Legacy backend:
 
