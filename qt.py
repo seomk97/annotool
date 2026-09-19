@@ -160,26 +160,91 @@ class MainWindow(QMainWindow, form_class):
         self.horizontalSlider.sliderPressed.connect(self.slider_pressed)
         self.listWidget.itemDoubleClicked.connect(self.item_double_clicked)
         self.actionQuit.triggered.connect(qApp.quit)
-        self.actionQuit.setShortcut('Ctrl+Q')
-        self.btn_file.setShortcut('f')
-        self.btn_load.setShortcut('l')
-        self.btn_object.setShortcut('o')
-        self.btn_track.setShortcut(Qt.Key.Key_Space)
-        self.btn_reset.setShortcut('q')
-        self.btn_target.setShortcut('c')
-        self.btn_up.setShortcut(Qt.Key.Key_Right)
-        self.btn_down.setShortcut(Qt.Key.Key_Left)
-        self.btn_folder.setShortcut(Qt.Key.Key_Home)
-        self.btn_tab.setShortcut(Qt.Key.Key_Tab)
-        self.btn_json.setShortcut('j')
-        self.btn_delete.setShortcut(Qt.Key.Key_Delete)
-        self.btn_action_toggle.setShortcut('b')
+        self.actionQuit.setShortcut(QKeySequence("Ctrl+Q"))
 
+        # Keep button labels and keyboard shortcuts in one place. Button-level
+        # shortcuts caused focus-dependent/double activation after Track/Play
+        # were merged, so all runtime shortcuts now use QShortcut on the window.
+        for button in (
+            self.btn_file,
+            self.btn_load,
+            self.btn_object,
+            self.btn_track,
+            self.btn_reset,
+            self.btn_play,
+            self.btn_target,
+            self.btn_up,
+            self.btn_down,
+            self.btn_folder,
+            self.btn_tab,
+            self.btn_json,
+            self.btn_delete,
+            self.btn_action_toggle,
+        ):
+            button.setShortcut(QKeySequence())
+
+        self.btn_file.setText("File (F)")
         self.btn_load.setText("Load (L)")
+        self.btn_object.setText("Object (O)")
+        self.btn_track.setText("Start Tracking\n(Space)")
+        self.btn_reset.setText("Reset (Q)")
         self.btn_target.setText("Box No. (C)")
+        self.btn_action_toggle.setText("Action Start (B)")
+
         self.btn_up.setEnabled(True)
         self.btn_down.setEnabled(True)
 
+        self._shortcuts = []
+        self._add_shortcut("F", lambda: self._click_if_enabled(self.btn_file))
+        self._add_shortcut("L", lambda: self._click_if_enabled(self.btn_load))
+        self._add_shortcut("O", lambda: self._click_if_enabled(self.btn_object))
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Space),
+            lambda: self._click_if_enabled(self.btn_track),
+        )
+        self._add_shortcut("Q", lambda: self._click_if_enabled(self.btn_reset))
+        self._add_shortcut("C", lambda: self._click_if_enabled(self.btn_target))
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Right),
+            lambda: self._click_if_enabled(self.btn_up),
+        )
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Left),
+            lambda: self._click_if_enabled(self.btn_down),
+        )
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Home),
+            lambda: self._click_if_enabled(self.btn_folder),
+        )
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Tab),
+            lambda: self._click_if_enabled(self.btn_tab),
+        )
+        self._add_shortcut("J", lambda: self._click_if_enabled(self.btn_json))
+        self._add_shortcut(
+            QKeySequence(Qt.Key_Delete),
+            lambda: self._click_if_enabled(self.btn_delete),
+        )
+        self._add_shortcut(
+            "B",
+            lambda: self._click_if_enabled(self.btn_action_toggle),
+        )
+
+
+
+    def _add_shortcut(self, sequence, callback):
+        shortcut = QShortcut(
+            sequence if isinstance(sequence, QKeySequence) else QKeySequence(sequence),
+            self,
+        )
+        shortcut.setContext(Qt.WindowShortcut)
+        shortcut.activated.connect(callback)
+        self._shortcuts.append(shortcut)
+
+    @staticmethod
+    def _click_if_enabled(button):
+        if button.isEnabled() and button.isVisible():
+            button.click()
 
     @pyqtSlot(QImage)
     def pixmap_update(self, image):
@@ -472,7 +537,7 @@ class MainWindow(QMainWindow, form_class):
         self.label_object.setText(object_name)
         self.label_target.setText(f"person {input_object}")
         self.btn_track.setEnabled(True)
-        self.btn_track.setText("Start Tracking\n(space)" if not tracking else "Resume\n(space)")
+        self.btn_track.setText("Start Tracking\n(Space)" if not tracking else "Resume\n(Space)")
 
         if was_playing and pause:
             self.space_key()
@@ -519,7 +584,7 @@ class MainWindow(QMainWindow, form_class):
         self.centralwidget.setFocus()
         self.btn_file.setEnabled(False)
         self.btn_track.setEnabled(True)
-        self.btn_track.setText("Pause\n(space)")
+        self.btn_track.setText("Pause\n(Space)")
         self.btn_reset.setEnabled(True)
         self.btn_target.setEnabled(True)
         self.btn_up.setEnabled(True)
@@ -927,11 +992,11 @@ class MainWindow(QMainWindow, form_class):
     def _apply_pause_ui(self, paused):
         if paused:
             self.horizontalSlider.setEnabled(True)
-            self.btn_track.setText("Resume\n(space)")
+            self.btn_track.setText("Resume\n(Space)")
             self.centralwidget.setFocus()
         else:
             self.horizontalSlider.setEnabled(False)
-            self.btn_track.setText("Pause\n(space)")
+            self.btn_track.setText("Pause\n(Space)")
             self.btn_tab.setEnabled(True)
 
     def q_key(self):
@@ -984,7 +1049,7 @@ class MainWindow(QMainWindow, form_class):
             self.btn_load.setEnabled(False)
             self.btn_object.setEnabled(False)
             self.btn_track.setEnabled(False)
-            self.btn_track.setText("Start Tracking\n(space)")
+            self.btn_track.setText("Start Tracking\n(Space)")
             self.btn_reset.setEnabled(False)
             self.btn_target.setEnabled(False)
             self.btn_up.setEnabled(True)
@@ -1197,8 +1262,7 @@ class MainWindow(QMainWindow, form_class):
 
                 self.active_action = action
                 self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
-                self.btn_action_toggle.setShortcut('b')
-                return
+                    return
 
             if self.active_action is None:
                 self.btn_action_toggle.setText("Action Start (B)")
@@ -1213,41 +1277,10 @@ class MainWindow(QMainWindow, form_class):
 
             self.active_action = None
             self.btn_action_toggle.setText("Action Start (B)")
-            self.btn_action_toggle.setShortcut('b')
             return
         finally:
             if was_playing and pause:
                 self.space_key()
-
-    def keyPressEvent(self, e):
-        global w_checked, r_checked, s_checked
-        if e.key() == Qt.Key_W:
-            if button_checkable:
-                if not w_checked and not r_checked and not s_checked:
-                    w_checked = True
-                else:
-                    return
-                self.w_key()
-            else:
-                self.w_key()
-        elif e.key() == Qt.Key_R:
-            if button_checkable:
-                if not w_checked and not r_checked and not s_checked:
-                    r_checked = True
-                else:
-                    return
-                self.r_key()
-            else:
-                self.r_key()
-        elif e.key() == Qt.Key_S:
-            if button_checkable:
-                if not w_checked and not r_checked and not s_checked:
-                    s_checked = True
-                else:
-                    return
-                self.s_key()
-            else:
-                self.s_key()
 
     def track(self):
         signal = SignalOfTrack()
