@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "annotool"
+version = "0.1.0"
+description = "Person-tracking video action annotation tool"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-only" }
+dependencies = [
+    "numpy>=1.26,<3",
+    "opencv-python>=4.10,<5",
+    "PyQt5>=5.15,<6",
+    "torch",
+    "torchvision",
+    "ultralytics>=8.4,<9",
+    "boxmot==25.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+annotool = ["assets/*.ui"]

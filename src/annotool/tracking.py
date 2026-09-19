@@ -7,7 +7,7 @@ import torch
 from boxmot import OccluBoost
 from ultralytics import YOLO
 
-from camera import preprocess_frame
+from .camera import preprocess_frame
 
 
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26m.pt")

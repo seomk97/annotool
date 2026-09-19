@@ -7,9 +7,9 @@ import cv2
 import numpy as np
 
 # Import the PyTorch backend before PyQt on Windows to avoid c10.dll load issues.
-from tracking import create_tracking_preview, draw_tracks, tracker
-from camera import FISHEYE_CALIB, configure_fisheye, fisheye, preprocess_frame
-from storage import AnnotationSession
+from .tracking import create_tracking_preview, draw_tracks, tracker
+from .camera import FISHEYE_CALIB, configure_fisheye, fisheye, preprocess_frame
+from .storage import AnnotationSession
 
 from PyQt5 import uic
 from PyQt5.QtCore import QObject, QRect, QSize, Qt, pyqtSignal, pyqtSlot

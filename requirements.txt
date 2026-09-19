@@ -1,7 +1,0 @@
-numpy>=1.26,<3
-opencv-python>=4.10,<5
-PyQt5>=5.15,<6
-torch
-torchvision
-ultralytics>=8.4,<9
-boxmot==25.0.0
