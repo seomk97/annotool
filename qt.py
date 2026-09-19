@@ -72,23 +72,25 @@ CLASSES = YOLO_COCO_CLASSES
 class SignalOfTrack(QObject):
     frameCount = pyqtSignal(int)
     buttonName = pyqtSignal(str, bool)
-    pixmapImage = pyqtSignal(QPixmap)
+    pixmapImage = pyqtSignal(QImage)
 
-    def slider_run(self, int):
-        self.frameCount.emit(int)
+    def slider_run(self, value):
+        self.frameCount.emit(int(value))
 
-    def btn_run(self, str, bool):
-        self.buttonName.emit(str, bool)
+    def btn_run(self, name, enabled):
+        self.buttonName.emit(name, enabled)
 
-    def pixmap_run(self, QPixmap):
-        self.pixmapImage.emit(QPixmap)
+    def pixmap_run(self, image):
+        self.pixmapImage.emit(image)
 
 
 class MainWindow(QMainWindow, form_class):
+    previewReady = pyqtSignal(bool, str)
 
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.previewReady.connect(self._screen_load_finished)
         self.btn_file.clicked.connect(self.file_load)
         self.btn_load.clicked.connect(self.screen_load)
         self.btn_object.clicked.connect(self.object_select)
@@ -125,8 +127,8 @@ class MainWindow(QMainWindow, form_class):
         self.btn_action_toggle.setShortcut('b')
 
     @pyqtSlot(QPixmap)
-    def pixmap_update(self, QPixmap):
-        self.label_mainscreen.setPixmap(QPixmap)
+    def pixmap_update(self, image):
+        self.label_mainscreen.setPixmap(QPixmap.fromImage(image))
 
     @pyqtSlot(int)
     def slider_control(self, int):
@@ -200,15 +202,42 @@ class MainWindow(QMainWindow, form_class):
         global pause
         flush = False
         pause = False
-        Object_tracking(yolo, video_path[0], '', input_size=input_size, show=True, iou_threshold=0.3,
-                        rectangle_colors=(255, 0, 0), Track_only=["person"])
+
+        # Model initialization / first CUDA inference can take long enough for
+        # Windows to mark the Qt window as "Not Responding". Keep it off the
+        # GUI thread and report completion through a queued Qt signal.
+        self.btn_load.setEnabled(False)
+        self.btn_object.setEnabled(False)
+        threading.Thread(target=self._screen_load_worker, daemon=True).start()
+
+    def _screen_load_worker(self):
+        try:
+            Object_tracking(
+                yolo,
+                video_path[0],
+                '',
+                input_size=input_size,
+                show=True,
+                iou_threshold=0.3,
+                rectangle_colors=(255, 0, 0),
+                Track_only=["person"],
+            )
+            self.previewReady.emit(True, "")
+        except Exception as exc:
+            self.previewReady.emit(False, str(exc))
+
+    @pyqtSlot(bool, str)
+    def _screen_load_finished(self, ok, error):
+        if not ok:
+            self.btn_load.setEnabled(True)
+            QMessageBox.critical(self, "Preview failed", error)
+            return
+
         self.img_load()
         if os.path.isfile("./captured/frame.jpg"):
             os.remove("./captured/frame.jpg")
         self.btn_object.setEnabled(True)
-        self.btn_load.setEnabled(False)
         self.btn_reset.setEnabled(True)
-        return
 
     def object_select(self):
         global input_object
@@ -789,10 +818,15 @@ class MainWindow(QMainWindow, form_class):
         return
 
     def open_folder(self):
-        if not os.path.isdir('./captured/'):
-            QMessageBox.about(self, "Couldn't find directory", "Please generate ../captured/")
+        path = os.path.abspath("./captured")
+        os.makedirs(path, exist_ok=True)
+
+        if sys.platform.startswith("win"):
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            os.system('open "%s"' % path)
         else:
-            os.system('xdg-open "%s"' % './captured/')
+            os.system('xdg-open "%s"' % path)
         return
 
     def target_only_view(self):
@@ -1042,8 +1076,8 @@ class MainWindow(QMainWindow, form_class):
                             if ret:
                                 h, w, ch = img.shape
                                 bytesPerLine = ch * w
-                                qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                                signal.pixmap_run(QPixmap.fromImage(qimg_3))
+                                qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
+                                signal.pixmap_run(qimg_3)
                                 framecount = jump_to_frame
                                 slider_moved = False
                             else:
@@ -1052,6 +1086,7 @@ class MainWindow(QMainWindow, form_class):
                             pass
 
                         signal.slider_run(framecount)
+                        time.sleep(0.02)
 
                         if not copied_tracked_bboxes:
                             signal.btn_run('btn_action_toggle', False)
@@ -1085,8 +1120,8 @@ class MainWindow(QMainWindow, form_class):
                     if ret:
                         h, w, ch = img.shape
                         bytesPerLine = ch * w
-                        qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
-                        signal.pixmap_run(QPixmap.fromImage(qimg_3))
+                        qimg_3 = QImage(img, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
+                        signal.pixmap_run(qimg_3)
                         framecount = jump_to_frame
                         slider_moved = False
                     else:
@@ -1095,6 +1130,7 @@ class MainWindow(QMainWindow, form_class):
                     pass
 
                 signal.slider_run(framecount)
+                time.sleep(0.02)
 
                 if not copied_tracked_bboxes:
                     signal.btn_run('btn_action_toggle', False)
@@ -1148,15 +1184,6 @@ class MainWindow(QMainWindow, form_class):
             times = times[-20:]
             fps = 1000 / (sum(times) / len(times) * 1000)
 
-            if jump_count is None:
-                signal.btn_run('btn_reset', True)
-                signal.btn_run('btn_play', True)
-                signal.btn_run('btn_target', True)
-                signal.btn_run('btn_up', True)
-                signal.btn_run('btn_action_toggle', True)
-            else:
-                pass
-
             copied_tracked_bboxes = []
             for i, value in enumerate(tracked_bboxes):
                 if value[4] == myobject:
@@ -1166,9 +1193,9 @@ class MainWindow(QMainWindow, form_class):
                     copied_tracked_bboxes = []
                     pass
 
-            if not copied_tracked_bboxes:
-                signal.btn_run('btn_action_toggle', False)
+            signal.btn_run('btn_action_toggle', bool(copied_tracked_bboxes))
 
+            if not copied_tracked_bboxes:
                 image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                     1, (0, 0, 255), 2)
                 image = cv2.putText(image, " Tracking Fail", (5, 60), cv2.FONT_HERSHEY_COMPLEX_SMALL,
@@ -1177,14 +1204,14 @@ class MainWindow(QMainWindow, form_class):
                                     1, (0, 0, 0), 2)
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
-                qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
                 image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
-                qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
 
                 if not target_only_view:
-                    signal.pixmap_run(QPixmap.fromImage(qimg_2))
+                    signal.pixmap_run(qimg_2)
                 else:
-                    signal.pixmap_run(QPixmap.fromImage(qimg_1))
+                    signal.pixmap_run(qimg_1)
 
                 objimg = np.array([])
                 pass
@@ -1209,14 +1236,14 @@ class MainWindow(QMainWindow, form_class):
                                       rectangle_colors=(0, 128, 0), tracking=True)
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
-                qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
                 image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
-                qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped()
+                qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
 
                 if not target_only_view:
-                    signal.pixmap_run(QPixmap.fromImage(qimg_2))
+                    signal.pixmap_run(qimg_2)
                 else:
-                    signal.pixmap_run(QPixmap.fromImage(qimg_1))
+                    signal.pixmap_run(qimg_1)
 
             fps2 = int(fps)
             print(framecount, ", fps:", fps2)
