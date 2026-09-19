@@ -106,6 +106,9 @@ class MainWindow(QMainWindow, form_class):
 
         # Custom action recording state.
         self.active_action = None
+        self.btn_action_snapshot = QPushButton("Action Snapshot (N)", self.centralwidget)
+        self.btn_action_snapshot.setGeometry(1121, 560, 170, 40)
+        self.btn_action_snapshot.setEnabled(False)
 
         # Track Start and Play/Pause represent one user operation. Keep the
         # historical worker/pause implementation underneath, but expose one
@@ -156,6 +159,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_json.clicked.connect(self.make_json)
         self.btn_delete.clicked.connect(self.item_delete)
         self.btn_action_toggle.clicked.connect(self.record_action_toggle)
+        self.btn_action_snapshot.clicked.connect(self.record_action_snapshot)
         self.horizontalSlider.sliderMoved.connect(self.slider_moved)
         self.horizontalSlider.sliderReleased.connect(self.slider_released)
         self.horizontalSlider.sliderPressed.connect(self.slider_pressed)
@@ -181,6 +185,7 @@ class MainWindow(QMainWindow, form_class):
             self.btn_json,
             self.btn_delete,
             self.btn_action_toggle,
+            self.btn_action_snapshot,
         ):
             button.setShortcut(QKeySequence())
 
@@ -191,6 +196,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_reset.setText("Reset (Q)")
         self.btn_target.setText("Box No. (C)")
         self.btn_action_toggle.setText("Action Start (B)")
+        self.btn_action_snapshot.setText("Action Snapshot (N)")
 
         self.btn_up.setEnabled(True)
         self.btn_down.setEnabled(True)
@@ -229,6 +235,10 @@ class MainWindow(QMainWindow, form_class):
         self._add_shortcut(
             "B",
             lambda: self._click_if_enabled(self.btn_action_toggle),
+        )
+        self._add_shortcut(
+            "N",
+            lambda: self._click_if_enabled(self.btn_action_snapshot),
         )
 
 
@@ -301,6 +311,8 @@ class MainWindow(QMainWindow, form_class):
     def btn_control(self, str, bool):
         if str == 'btn_action_toggle':
             self.btn_action_toggle.setEnabled(bool)
+        elif str == 'btn_action_snapshot':
+            self.btn_action_snapshot.setEnabled(bool)
         elif str == 'btn_delete':
             self.btn_delete.setEnabled(bool)
         elif str == 'btn_down':
@@ -1057,6 +1069,7 @@ class MainWindow(QMainWindow, form_class):
             self.btn_down.setEnabled(set_speed > 0.1)
             self.btn_tab.setEnabled(False)
             self.btn_action_toggle.setEnabled(False)
+            self.btn_action_snapshot.setEnabled(False)
             input_object = None
             copied_input_object = None
             end = False
@@ -1233,6 +1246,28 @@ class MainWindow(QMainWindow, form_class):
         self.label_show_label.setText(f"{current_frame}.jpg   {label}")
         self.label_show_target.setPixmap(QPixmap(image_path))
         return True
+
+    def record_action_snapshot(self):
+        global pause
+
+        was_playing = not pause
+        if was_playing:
+            self.space_key()
+
+        try:
+            action, ok = QInputDialog.getText(
+                self,
+                "Action Snapshot",
+                "Action name:",
+            )
+            action = action.strip()
+            if not ok or not action:
+                return
+
+            self._record_action_marker(action)
+        finally:
+            if was_playing and pause:
+                self.space_key()
 
     def record_action_toggle(self):
         global pause
