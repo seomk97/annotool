@@ -20,13 +20,17 @@
 
 import sys
 import time
+import threading
+import json
+
+# Import the PyTorch/Ultralytics backend before PyQt on Windows.
+# PyTorch can fail to load c10.dll when imported after Qt DLLs.
+from main import *
+
 from PyQt5.QtWidgets import *
 from PyQt5 import uic
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from main import *
-import threading
-import json
 
 form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
 
