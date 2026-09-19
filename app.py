@@ -12,10 +12,20 @@ import numpy as np
 from tracking import create_tracking_preview, draw_tracks, tracker
 from camera import FISHEYE_CALIB, configure_fisheye, fisheye, preprocess_frame
 
-from PyQt5.QtWidgets import *
 from PyQt5 import uic
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, QRect, QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QImage, QKeySequence, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QInputDialog,
+    QMainWindow,
+    QMessageBox,
+    QProgressDialog,
+    QShortcut,
+    QWidget,
+    qApp,
+)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG_FPS = os.environ.get("ANNOTOOL_DEBUG_FPS", "").strip().lower() in {"1", "true", "yes", "on"}
