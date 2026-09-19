@@ -11,10 +11,10 @@ from ultralytics import YOLO
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
+MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26l.pt")
 REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17.pt")
 YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
-input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
+input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "1280"))
 DEVICE = os.environ.get("ANNOTOOL_DEVICE", "0" if torch.cuda.is_available() else "cpu")
 USE_HALF = torch.cuda.is_available() and DEVICE.lower() != "cpu"
 BOXMOT_DEVICE = (
@@ -195,7 +195,7 @@ class YOLOTrackerAdapter:
                 return
 
             if progress:
-                progress("Loading YOLO26s detector...")
+                progress("Loading YOLO26l detector...")
             self._ensure_detector()
 
             # Warm the YOLO predictor/CUDA path.
