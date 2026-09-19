@@ -1,0 +1,27 @@
+# Deep OC-SORT tuned for annotool.
+# Prioritize stable person identity through overlap/occlusion over minimum latency.
+
+tracker_type: deepocsort
+
+# Association thresholds
+track_high_thresh: 0.25
+track_low_thresh: 0.05
+new_track_thresh: 0.30
+track_buffer: 90
+match_thresh: 0.80
+fuse_score: True
+
+# Observation-centric motion
+delta_t: 3
+inertia: 0.20
+use_byte: True
+
+# Camera motion compensation
+gmc_method: sparseOptFlow
+
+# Dedicated appearance ReID
+with_reid: True
+model: yolo26m-reid.onnx
+proximity_thresh: 0.30
+appearance_thresh: 0.85
+alpha_fixed_emb: 0.95
