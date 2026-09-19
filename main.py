@@ -208,7 +208,7 @@ class YOLOTrackerAdapter:
                 classes=[0],
                 imgsz=self.imgsz,
                 device=self.device,
-                half=self.half,
+                quantize=16 if self.half else None,
                 verbose=False,
             )
 
