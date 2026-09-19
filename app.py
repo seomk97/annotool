@@ -28,7 +28,7 @@ object_name = ""             # user-defined persistent object name
 object_slug = ""             # filesystem-safe object name
 framecount = 0
 end = False
-flush = False
+stop_requested = False
 pause = False
 objimg = np.array([])
 set_speed = 1.0
@@ -79,12 +79,8 @@ class AnnotationWindow(QMainWindow, form_class):
 
         self.active_action = None
 
-        # Preserve the original 1301x751 visual layout, but scale widget
-        # geometries when the user resizes the main window.
-        # qtui.ui was designed for a 1301x751 main window with a 21 px
-        # menu bar, so the central widget's logical design area is 1301x730.
-        # Do not read centralwidget.size() here: before the first show/layout
-        # pass Qt may still report a temporary tiny size.
+        # Scale the designer geometry from its 1301x730 logical canvas.
+        # Avoid reading the central widget size before the first layout pass.
         self._base_central_size = QSize(1301, 730)
         self._base_geometries = {
             child: QRect(child.geometry())
@@ -107,7 +103,7 @@ class AnnotationWindow(QMainWindow, form_class):
         self.btn_load.clicked.connect(self.screen_load)
         self.btn_object.clicked.connect(self.object_select)
         self.btn_track.clicked.connect(self.toggle_tracking)
-        self.btn_reset.clicked.connect(self.q_key)
+        self.btn_reset.clicked.connect(self.reset_session)
         self.btn_target.clicked.connect(self.target_change)
         self.btn_up.clicked.connect(self.speed_up)
         self.btn_down.clicked.connect(self.speed_down)
@@ -124,9 +120,8 @@ class AnnotationWindow(QMainWindow, form_class):
         self.actionQuit.triggered.connect(qApp.quit)
         self.actionQuit.setShortcut(QKeySequence("Ctrl+Q"))
 
-        # Keep button labels and keyboard shortcuts in one place. Button-level
-        # shortcuts caused focus-dependent/double activation after Track/Play
-        # were merged, so all runtime shortcuts now use QShortcut on the window.
+        # Keep runtime shortcuts on the window so activation is independent
+        # of whichever control currently owns keyboard focus.
         for button in (
             self.btn_file,
             self.btn_load,
@@ -260,41 +255,31 @@ class AnnotationWindow(QMainWindow, form_class):
         self._render_main_image()
 
     @pyqtSlot(int)
-    def slider_control(self, int):
-        self.horizontalSlider.setValue(int)
+    def slider_control(self, value):
+        self.horizontalSlider.setValue(value)
 
     @pyqtSlot(str, bool)
-    def btn_control(self, str, bool):
-        if str == 'btn_action_toggle':
-            self.btn_action_toggle.setEnabled(bool)
-        elif str == 'btn_action_snapshot':
-            self.btn_action_snapshot.setEnabled(bool)
-        elif str == 'btn_delete':
-            self.btn_delete.setEnabled(bool)
-        elif str == 'btn_down':
-            self.btn_down.setEnabled(bool)
-        elif str == 'btn_file':
-            self.btn_file.setEnabled(bool)
-        elif str == 'btn_folder':
-            self.btn_folder.setEnabled(bool)
-        elif str == 'btn_json':
-            self.btn_json.setEnabled(bool)
-        elif str == 'btn_load':
-            self.btn_load.setEnabled(bool)
-        elif str == 'btn_object':
-            self.btn_object.setEnabled(bool)
-        elif str == 'btn_reset':
-            self.btn_reset.setEnabled(bool)
-        elif str == 'btn_tab':
-            self.btn_tab.setEnabled(bool)
-        elif str == 'btn_target':
-            self.btn_target.setEnabled(bool)
-        elif str == 'btn_track':
-            self.btn_track.setEnabled(bool)
-        elif str == 'btn_up':
-            self.btn_up.setEnabled(bool)
-        else:
-            raise Exception('btn invalid')
+    def btn_control(self, name, enabled):
+        buttons = {
+            "btn_action_toggle": self.btn_action_toggle,
+            "btn_action_snapshot": self.btn_action_snapshot,
+            "btn_delete": self.btn_delete,
+            "btn_down": self.btn_down,
+            "btn_file": self.btn_file,
+            "btn_folder": self.btn_folder,
+            "btn_json": self.btn_json,
+            "btn_load": self.btn_load,
+            "btn_object": self.btn_object,
+            "btn_reset": self.btn_reset,
+            "btn_tab": self.btn_tab,
+            "btn_target": self.btn_target,
+            "btn_track": self.btn_track,
+            "btn_up": self.btn_up,
+        }
+        button = buttons.get(name)
+        if button is None:
+            raise ValueError(f"Unknown button signal: {name}")
+        button.setEnabled(enabled)
 
     def file_load(self):
         global video_path
@@ -410,9 +395,9 @@ class AnnotationWindow(QMainWindow, form_class):
         return
 
     def screen_load(self):
-        global flush
+        global stop_requested
         global pause
-        flush = False
+        stop_requested = False
         pause = False
 
         self.btn_load.setEnabled(False)
@@ -625,14 +610,13 @@ class AnnotationWindow(QMainWindow, form_class):
             self.btn_track.setText("Pause\n(Space)")
             self.btn_tab.setEnabled(True)
 
-    def q_key(self):
-        self.flush()
-        return
+    def reset_session(self):
+        self._reset_state()
 
-    def flush(self):
+    def _reset_state(self):
         global input_object
         global end
-        global flush
+        global stop_requested
         global pause
         global set_speed
         global tracking
@@ -653,7 +637,7 @@ class AnnotationWindow(QMainWindow, form_class):
                 self.make_json()
 
             tracking = False
-            flush = True
+            stop_requested = True
             set_speed = 1.0
             self.active_action = None
             self.btn_action_toggle.setChecked(False)
@@ -957,17 +941,6 @@ class AnnotationWindow(QMainWindow, form_class):
 
         global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_preview_pending, slider_commit_pending, slider_dragging, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
 
-        # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
-        # pause_flag = temporal pause handler for listwidget item double click loop event
-        # qimg_1, qimg_2 = 각각 오리지날 이미지에 대상만 박스처리, 대상만 박스처리한것에 나머지 오브젝트도 박스처리
-        # tracking = tracking thread가 돌아가고 있을때 오브젝트 수정을 위한 변수
-        # slider_preview_pending / slider_commit_pending = paused seek preview/final request flags
-        # objimg = 오브젝트 이미지 저장
-        # jumped = 리스트 아이템 더블클릭이 된 이벤트 변수
-        # target_changed = 타겟변경이 이루어진 이벤트 (기본 0, 변경시 1 전프레임으로 돌아가서 타겟변경후 한번 prediction 후 pause 유지)
-        # pause = play/pause event handler
-        # writing_dir = object writing directory "./captured/object%d_%d"
-
         framecount = 0.0
         times = []  # for calculating fps
         tracking = True
@@ -1136,7 +1109,7 @@ class AnnotationWindow(QMainWindow, form_class):
 
                         if target_changed or jumped or pause_flag:
                             break
-                        if flush:
+                        if stop_requested:
                             return
                         if not pause:
                             token = 1
@@ -1194,7 +1167,7 @@ class AnnotationWindow(QMainWindow, form_class):
                     break
                 if target_changed or jumped or pause_flag:
                     break
-                if flush:
+                if stop_requested:
                     return
                 if not pause:
                     token = 1
