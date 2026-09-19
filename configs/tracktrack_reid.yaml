@@ -5,9 +5,9 @@
 tracker_type: tracktrack
 
 # Detection / association thresholds
-track_high_thresh: 0.25
+track_high_thresh: 0.20
 track_low_thresh: 0.05
-new_track_thresh: 0.30
+new_track_thresh: 0.10
 track_buffer: 90
 match_thresh: 0.75
 lost_match_thr: 0.90
@@ -25,7 +25,7 @@ reduce_step: 0.05
 
 # Track-aware initialization
 tai_thr: 0.55
-min_track_len: 2
+min_track_len: 1
 
 # Camera motion compensation
 gmc_method: sparseOptFlow
