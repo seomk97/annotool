@@ -58,23 +58,12 @@ w_checked = False
 r_checked = False
 s_checked = False
 
-YoloV4 = yolo  # yolo : tensorflow weight transformed from darknet weight at main.py
 score_threshold = 0.3
 iou_threshold = 0.1
 CLASSES = YOLO_COCO_CLASSES
-max_cosine_distance = 0.4
-nn_budget = None
 
-# initialize deep sort object
-model_filename = "./pjtlibs/mars-small128.pb"  # deep sort weight
-encoder = gdet.create_box_encoder(model_filename, batch_size=1)
-metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-tracker = Tracker(metric)
-
-NUM_CLASS = read_class_names(CLASSES)  # name strip from utils
-key_list = list(NUM_CLASS.keys())
-val_list = list(NUM_CLASS.values())
-
+# The YOLO26 + ByteTrack adapter is imported from main.py as `tracker`.
+# Keep detector/tracker state outside the Qt button/signal state machine.
 
 class SignalOfTrack(QObject):
     frameCount = pyqtSignal(int)
@@ -175,7 +164,7 @@ class MainWindow(QMainWindow, form_class):
     def file_load(self):
         global video_path
         video_path_buffer = QFileDialog.getOpenFileName(self, None, None, "Video files (*.mp4)")
-        if video_path_buffer[0] is not '' and video_path_buffer != video_path:
+        if video_path_buffer[0] != '' and video_path_buffer != video_path:
             video_path = video_path_buffer
             self.label.setText(video_path[0])
             self.img_load()
@@ -293,8 +282,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_tab.setEnabled(True)
         self.btn_action_toggle.setEnabled(True)
         self.horizontalSlider.setEnabled(False)
-        th = threading.Thread(target=self.track)
-        th.setDaemon(True)
+        th = threading.Thread(target=self.track, daemon=True)
         th.start()
 
     def w_key(self):
@@ -946,8 +934,7 @@ class MainWindow(QMainWindow, form_class):
         signal.buttonName.connect(self.btn_control)
         signal.pixmapImage.connect(self.pixmap_update)
 
-        tracker.tracks = []
-        tracker._next_id = 1  # init tracker
+        tracker.reset()
 
         vid = cv2.VideoCapture(video_path[0])
 
@@ -1012,8 +999,7 @@ class MainWindow(QMainWindow, form_class):
                     vid.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
-                tracker.tracks = []  # tracker initialize
-                tracker._next_id = 1  # tracker initialize
+                tracker.reset()
                 jump_count = 0  # defualt = None, becomes 0 when jumped
                 jumped = False
 
@@ -1047,8 +1033,7 @@ class MainWindow(QMainWindow, form_class):
                     while pause:
                         if slider_moved:
                             vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                            tracker.tracks = []
-                            tracker._next_id = 1
+                            tracker.reset()
                             ret, img = vid.read()
                             if ret:
                                 h, w, ch = img.shape
@@ -1091,8 +1076,7 @@ class MainWindow(QMainWindow, form_class):
             while pause:
                 if slider_moved:
                     vid.set(cv2.CAP_PROP_POS_FRAMES, jump_to_frame)
-                    tracker.tracks = []
-                    tracker._next_id = 1
+                    tracker.reset()
                     ret, img = vid.read()
                     if ret:
                         h, w, ch = img.shape
@@ -1147,51 +1131,14 @@ class MainWindow(QMainWindow, form_class):
             else:
                 pass
 
-            image_data = image_preprocess(np.copy(original_image), [input_size, input_size])
-            image_data = tf.expand_dims(image_data, 0)
-
-            pred_bbox = YoloV4.predict(image_data)
-
-            pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
-            pred_bbox = tf.concat(pred_bbox, axis=0)
-
-            bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
-            bboxes = nms(bboxes, iou_threshold, method='nms')  # nms from utils
-
-            # extract bboxes to boxes (x, y, width, height), scores and names
-            boxes, scores, names = [], [], []
-            for bbox in bboxes:
-                if len(Track_only) != 0 and NUM_CLASS[int(bbox[5])] in Track_only or len(Track_only) == 0:
-                    boxes.append([bbox[0].astype(int), bbox[1].astype(int), bbox[2].astype(int) - bbox[0].astype(int),
-                                  bbox[3].astype(int) - bbox[1].astype(int)])
-                    scores.append(bbox[4])
-                    names.append(NUM_CLASS[int(bbox[5])])
-
-            # Obtain all the detections for the given frame.
-            boxes = np.array(boxes)
-            names = np.array(names)
-            scores = np.array(scores)
-            features = np.array(encoder(original_image, boxes))
-            detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in
-                          zip(boxes, scores, names, features)]
-
-            # Pass detections to the deepsort object and obtain the track information.
-
-            tracker.predict()
-            tracker.update(detections)
-
-            # Obtain info from the tracks
-            tracked_bboxes = []
-            for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 1:  # currently tracked objects is in tracker.tracks and its updated time count is time_since_update
-                    continue
-                bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
-                class_name = track.get_class()  # Get the class name of particular object
-                tracking_id = track.track_id  # Get the ID for the particular track
-                index = key_list[val_list.index(class_name)]  # Get predicted object index by object name
-                tracked_bboxes.append(bbox.tolist() + [tracking_id,
-                                                       index])  # Structure data, that we could use it with our draw_bbox function
-
+            # Backend modernization: keep the original worker-thread/UI flow,
+            # but delegate detection + ID tracking to YOLO26 + ByteTrack.
+            tracked_bboxes = tracker.track_frame(
+                original_image,
+                conf=score_threshold,
+                iou=iou_threshold,
+                classes=[0],  # person
+            )
             t2 = time.time()
             times.append(t2 - t1)
             times = times[-20:]
