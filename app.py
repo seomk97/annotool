@@ -1,43 +1,29 @@
-# @inproceedings{Wojke2017simple,
-#   title={Simple Online and Realtime Tracking with a Deep Association Metric},
-#   author={Wojke, Nicolai and Bewley, Alex and Paulus, Dietrich},
-#   booktitle={2017 IEEE International Conference on Image Processing (ICIP)},
-#   year={2017},
-#   pages={3645--3649},
-#   organization={IEEE},
-#   doi={10.1109/ICIP.2017.8296962}
-# }
-#
-# @inproceedings{Wojke2018deep,
-#   title={Deep Cosine Metric Learning for Person Re-identification},
-#   author={Wojke, Nicolai and Bewley, Alex},
-#   booktitle={2018 IEEE Winter Conference on Applications of Computer Vision (WACV)},
-#   year={2018},
-#   pages={748--756},
-#   organization={IEEE},
-#   doi={10.1109/WACV.2018.00087}
-# }
-
-import sys
-import time
-import threading
 import json
+import os
 import re
+import sys
+import threading
+import time
 
-# Import the PyTorch/Ultralytics backend before PyQt on Windows.
-# PyTorch can fail to load c10.dll when imported after Qt DLLs.
-from main import *
+import cv2
+import numpy as np
+
+# Import the PyTorch backend before PyQt on Windows to avoid c10.dll load issues.
+from tracking import create_tracking_preview, draw_tracks, tracker
+from camera import FISHEYE_CALIB, configure_fisheye, fisheye, preprocess_frame
 
 from PyQt5.QtWidgets import *
 from PyQt5 import uic
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
-form_class = uic.loadUiType("./pjtlibs/qtui.ui")[0]
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DEBUG_FPS = os.environ.get("ANNOTOOL_DEBUG_FPS", "").strip().lower() in {"1", "true", "yes", "on"}
+UI_PATH = os.path.join(APP_DIR, "assets", "annotool.ui")
+form_class = uic.loadUiType(UI_PATH)[0]
 
 video_path = []
 input_object = None          # current tracker ID shown on the video
-copied_input_object = None   # legacy initial tracker ID used by old hotkey code
 object_name = ""             # user-defined persistent object name
 object_slug = ""             # filesystem-safe object name
 framecount = 0
@@ -58,23 +44,9 @@ workspace = []
 jumped = False
 target_changed = 0
 writing_dir = ""
-button_checkable = False  # w,r,s is_checkable
-toggle_button = False  # action record toggle button is checked?
-action_started = 0  # action record started frame
 escape = 0
 
-w_checked = False
-r_checked = False
-s_checked = False
-
-score_threshold = 0.05
-iou_threshold = 0.70
-CLASSES = YOLO_COCO_CLASSES
-
-# The YOLO26s + BoxMOT OccluBoost + OSNet ReID adapter is imported from main.py as `tracker`.
-# Keep detector/tracker state outside the Qt button/signal state machine.
-
-class SignalOfTrack(QObject):
+class TrackingSignals(QObject):
     frameCount = pyqtSignal(int)
     buttonName = pyqtSignal(str, bool)
     pixmapImage = pyqtSignal(QImage)
@@ -97,7 +69,7 @@ class SignalOfTrack(QObject):
         self.videoEnded.emit()
 
 
-class MainWindow(QMainWindow, form_class):
+class AnnotationWindow(QMainWindow, form_class):
     previewReady = pyqtSignal(bool, str)
     previewProgress = pyqtSignal(str)
 
@@ -105,30 +77,7 @@ class MainWindow(QMainWindow, form_class):
         super().__init__()
         self.setupUi(self)
 
-        # Custom action recording state.
         self.active_action = None
-        # Keep the lower-right annotation controls in one 30 px vertical stack.
-        self.btn_action_toggle.setGeometry(1121, 500, 170, 30)
-        self.btn_action_snapshot = QPushButton("Action Snapshot (N)", self.centralwidget)
-        self.btn_action_snapshot.setGeometry(1121, 540, 170, 30)
-        self.btn_action_snapshot.setEnabled(False)
-        self.btn_tab.setGeometry(1121, 580, 170, 30)
-        self.btn_tab.setText("Show Target Only (Tab)")
-        self.btn_folder.setGeometry(1121, 620, 170, 30)
-        self.btn_reset.setGeometry(1121, 665, 170, 45)
-
-        # Track Start and Play/Pause represent one user operation. Keep the
-        # historical worker/pause implementation underneath, but expose one
-        # large Start/Pause/Resume button in the UI.
-        track_rect = self.btn_track.geometry()
-        play_rect = self.btn_play.geometry()
-        self.btn_track.setGeometry(
-            track_rect.x(),
-            min(track_rect.y(), play_rect.y()),
-            play_rect.right() - track_rect.x() + 1,
-            max(track_rect.height(), play_rect.height()),
-        )
-        self.btn_play.hide()
 
         # Preserve the original 1301x751 visual layout, but scale widget
         # geometries when the user resizes the main window.
@@ -184,7 +133,6 @@ class MainWindow(QMainWindow, form_class):
             self.btn_object,
             self.btn_track,
             self.btn_reset,
-            self.btn_play,
             self.btn_target,
             self.btn_up,
             self.btn_down,
@@ -335,8 +283,6 @@ class MainWindow(QMainWindow, form_class):
             self.btn_load.setEnabled(bool)
         elif str == 'btn_object':
             self.btn_object.setEnabled(bool)
-        elif str == 'btn_play':
-            self.btn_track.setEnabled(bool)
         elif str == 'btn_reset':
             self.btn_reset.setEnabled(bool)
         elif str == 'btn_tab':
@@ -437,7 +383,7 @@ class MainWindow(QMainWindow, form_class):
 
         # Only after the raw video is visible do we spend resources preparing
         # the tracking backend.
-        if not yolo.is_prepared and not self._model_prepare_started:
+        if not tracker.is_prepared and not self._model_prepare_started:
             self._model_prepare_started = True
             threading.Thread(
                 target=self._prepare_model_background,
@@ -448,7 +394,7 @@ class MainWindow(QMainWindow, form_class):
 
     def _prepare_model_background(self):
         try:
-            yolo.prepare()
+            tracker.prepare()
         except Exception as exc:
             self._model_prepare_error = str(exc)
         finally:
@@ -497,19 +443,10 @@ class MainWindow(QMainWindow, form_class):
     def _screen_load_worker(self):
         try:
             self.previewProgress.emit("Loading model / tracker...")
-            yolo.prepare(progress=self.previewProgress.emit)
+            tracker.prepare(progress=self.previewProgress.emit)
 
             self.previewProgress.emit("Reading and tracking first frame...")
-            Object_tracking(
-                yolo,
-                video_path[0],
-                '',
-                input_size=input_size,
-                show=True,
-                iou_threshold=iou_threshold,
-                rectangle_colors=(255, 0, 0),
-                Track_only=["person"],
-            )
+            create_tracking_preview(video_path[0])
 
             self.previewProgress.emit("Rendering preview...")
             self.previewReady.emit(True, "")
@@ -564,7 +501,6 @@ class MainWindow(QMainWindow, form_class):
 
     def object_select(self):
         global input_object
-        global copied_input_object
         global object_name
         global object_slug
         global pause
@@ -610,7 +546,6 @@ class MainWindow(QMainWindow, form_class):
         object_name = name
         object_slug = self._safe_object_slug(name)
         input_object = target_id
-        copied_input_object = target_id
 
         self.label_object.setText(object_name)
         self.label_target.setText(f"person {input_object}")
@@ -651,11 +586,11 @@ class MainWindow(QMainWindow, form_class):
             return
 
         if not tracking:
-            self.my_thread()
+            self._start_tracking_worker()
         else:
             self.space_key()
 
-    def my_thread(self):
+    def _start_tracking_worker(self):
         global tracking
 
         tracking = True
@@ -672,393 +607,6 @@ class MainWindow(QMainWindow, form_class):
         self.horizontalSlider.setEnabled(False)
         th = threading.Thread(target=self.track, daemon=True)
         th.start()
-
-    def w_key(self):
-        global workspace
-        global action_started
-        label_n_count = [copied_input_object, framecount]
-
-        if button_checkable:
-            if w_checked:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "start_walking", objimg])
-                workspace.sort()
-                action_started = label_n_count[1]
-
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_walking " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                        break
-
-                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_walking " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                    elif workspace_item[0] < label_n_count[1]:
-                        pass
-
-                self.label_show_label.setText("%d.jpg   start_walking" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-            else:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "end_walking", objimg])
-                workspace.sort()
-
-                check = True
-                while check:
-                    for i, workspace_item in enumerate(workspace):
-                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
-                            self.listWidget.insertItem(i, " %d    end_walking " % label_n_count[1])
-                            self.listWidget.setCurrentRow(i)
-                            if len(workspace) - 1 == i:
-                                self.listWidget.scrollToBottom()
-                            check = False
-                            break
-                        elif action_started >= workspace_item[0]:
-                            pass
-                        elif workspace_item[0] < label_n_count[1]:
-                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                            workspace.sort()
-                            break
-
-                self.label_show_label.setText("%d.jpg   end_walking" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-
-        else:
-            if objimg.size == 0:
-                self.label_show_label.setText("Track Failed")
-                return
-            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        workspace.pop(i)
-                        self.listWidget.takeItem(i)
-                    else:
-                        pass
-            else:
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-            workspace.append([label_n_count[1], "walking", objimg])
-            workspace.sort()
-
-            for i, workspace_item in enumerate(workspace):
-                if workspace_item[0] == label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    walking " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                    break
-
-                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    walking " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                elif workspace_item[0] < label_n_count[1]:
-                    pass
-
-            self.label_show_label.setText("%d.jpg   walking" % label_n_count[1])
-            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label_show_target.setPixmap(pixmap_small)
-            return
-
-    def r_key(self):
-        global workspace
-        global action_started
-        label_n_count = [copied_input_object, framecount]
-
-        if button_checkable:
-            if r_checked:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "start_running", objimg])
-                workspace.sort()
-                action_started = label_n_count[1]
-
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_running " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                        break
-
-                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_running " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                    elif workspace_item[0] < label_n_count[1]:
-                        pass
-
-                self.label_show_label.setText("%d.jpg   start_running" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-            else:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "end_running", objimg])
-                workspace.sort()
-
-                check = True
-                while check:
-                    for i, workspace_item in enumerate(workspace):
-                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
-                            self.listWidget.insertItem(i, " %d    end_running " % label_n_count[1])
-                            self.listWidget.setCurrentRow(i)
-                            if len(workspace) - 1 == i:
-                                self.listWidget.scrollToBottom()
-                            check = False
-                            break
-                        elif action_started >= workspace_item[0]:
-                            pass
-                        elif workspace_item[0] < label_n_count[1]:
-                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                            workspace.sort()
-                            break
-
-                self.label_show_label.setText("%d.jpg   end_running" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-
-        else:
-            if objimg.size == 0:
-                self.label_show_label.setText("Track Failed")
-                return
-            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        workspace.pop(i)
-                        self.listWidget.takeItem(i)
-                    else:
-                        pass
-            else:
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-            workspace.append([label_n_count[1], "running", objimg])
-            workspace.sort()
-
-            for i, workspace_item in enumerate(workspace):
-                if workspace_item[0] == label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    running " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                    break
-
-                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    running " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                elif workspace_item[0] < label_n_count[1]:
-                    pass
-
-            self.label_show_label.setText("%d.jpg   running" % label_n_count[1])
-            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label_show_target.setPixmap(pixmap_small)
-            return
-
-    def s_key(self):
-        global workspace
-        global action_started
-        label_n_count = [copied_input_object, framecount]
-
-        if button_checkable:
-            if s_checked:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "start_stop", objimg])
-                workspace.sort()
-                action_started = label_n_count[1]
-
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_stop " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                        break
-
-                    if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                        self.listWidget.insertItem(i, " %d    start_stop " % label_n_count[1])
-                        self.listWidget.setCurrentRow(i)
-                        if len(workspace) - 1 == i:
-                            self.listWidget.scrollToBottom()
-                    elif workspace_item[0] < label_n_count[1]:
-                        pass
-
-                self.label_show_label.setText("%d.jpg   start_stop" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-            else:
-                if objimg.size == 0:
-                    self.label_show_label.setText("Track Failed")
-                    return
-                if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                    os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                    for i, workspace_item in enumerate(workspace):
-                        if workspace_item[0] == label_n_count[1]:
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                        else:
-                            pass
-                else:
-                    cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-                workspace.append([label_n_count[1], "end_stop", objimg])
-                workspace.sort()
-
-                check = True
-                while check:
-                    for i, workspace_item in enumerate(workspace):
-                        if not workspace_item[0] or workspace_item[0] >= label_n_count[1]:
-                            self.listWidget.insertItem(i, " %d    end_stop " % label_n_count[1])
-                            self.listWidget.setCurrentRow(i)
-                            if len(workspace) - 1 == i:
-                                self.listWidget.scrollToBottom()
-                            check = False
-                            break
-                        elif action_started >= workspace_item[0]:
-                            pass
-                        elif workspace_item[0] < label_n_count[1]:
-                            os.remove(writing_dir + "/%d.jpg" % workspace_item[0])
-                            workspace.pop(i)
-                            self.listWidget.takeItem(i)
-                            workspace.sort()
-                            break
-
-                self.label_show_label.setText("%d.jpg   end_stop" % label_n_count[1])
-                pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-                self.label_show_target.setPixmap(pixmap_small)
-                return
-
-        else:
-            if objimg.size == 0:
-                self.label_show_label.setText("Track Failed")
-                return
-            if os.path.isfile(writing_dir + "/%d.jpg" % label_n_count[1]):
-                os.remove(writing_dir + "/%d.jpg" % label_n_count[1])
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-                for i, workspace_item in enumerate(workspace):
-                    if workspace_item[0] == label_n_count[1]:
-                        workspace.pop(i)
-                        self.listWidget.takeItem(i)
-                    else:
-                        pass
-            else:
-                cv2.imwrite(writing_dir + "/%d.jpg" % label_n_count[1], objimg)
-
-            workspace.append([label_n_count[1], "stop", objimg])
-            workspace.sort()
-
-            for i, workspace_item in enumerate(workspace):
-                if workspace_item[0] == label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    stop " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                    break
-
-                if not workspace_item[0] or workspace_item[0] > label_n_count[1]:
-                    self.listWidget.insertItem(i, " %d    stop " % label_n_count[1])
-                    self.listWidget.setCurrentRow(i)
-                    if len(workspace) - 1 == i:
-                        self.listWidget.scrollToBottom()
-                elif workspace_item[0] < label_n_count[1]:
-                    pass
-
-            self.label_show_label.setText("%d.jpg   stop" % label_n_count[1])
-            pixmap_small = QPixmap(writing_dir + "/%d.jpg" % label_n_count[1])
-            self.label_show_target.setPixmap(pixmap_small)
-            return
 
     def space_key(self):
         global pause
@@ -1083,7 +631,6 @@ class MainWindow(QMainWindow, form_class):
 
     def flush(self):
         global input_object
-        global copied_input_object
         global end
         global flush
         global pause
@@ -1136,7 +683,6 @@ class MainWindow(QMainWindow, form_class):
             self.btn_action_toggle.setEnabled(False)
             self.btn_action_snapshot.setEnabled(False)
             input_object = None
-            copied_input_object = None
             end = False
             self.horizontalSlider.setValue(1)
             self.horizontalSlider.setEnabled(False)
@@ -1238,7 +784,6 @@ class MainWindow(QMainWindow, form_class):
             pass
         item_index = self.listWidget.currentRow()
         self.horizontalSlider.setValue(workspace[item_index][0])
-        print(self.horizontalSlider.sliderPosition())
         jump_to_frame = self.horizontalSlider.value()
         pixmap_small = QPixmap(writing_dir + "/%d.jpg" % workspace[item_index][0])
         self.label_show_target.setPixmap(pixmap_small)
@@ -1395,7 +940,7 @@ class MainWindow(QMainWindow, form_class):
                 self.space_key()
 
     def track(self):
-        signal = SignalOfTrack()
+        signal = TrackingSignals()
         signal.frameCount.connect(self.slider_control)
         signal.buttonName.connect(self.btn_control)
         signal.pixmapImage.connect(self.pixmap_update)
@@ -1410,7 +955,6 @@ class MainWindow(QMainWindow, form_class):
             source_fps = 30.0
         frame_interval = 1.0 / source_fps
 
-        Track_only = ['person']
         global framecount, pause_flag, qimg_1, qimg_2, tracking, slider_preview_pending, slider_commit_pending, slider_dragging, objimg, jumped, target_changed, pause, writing_dir, set_speed, token, escape, object_slug
 
         # framecount = 프레임카운트, pause_flag = 리스트 더블클릭시 이동하고 전프레임 보여주는 루프이후 pause 유지위함
@@ -1448,13 +992,7 @@ class MainWindow(QMainWindow, form_class):
 
             seek_image = preprocess_frame(seek_image)
             framecount = target_frame
-            tracked = tracker.track_frame(
-                seek_image,
-                conf=score_threshold,
-                iou=iou_threshold,
-                classes=[0],
-                preferred_track_id=input_object,
-            )
+            tracked = tracker.track_frame(seek_image)
 
             target_box = None
             other_boxes = []
@@ -1475,31 +1013,19 @@ class MainWindow(QMainWindow, form_class):
                 y2c = min(h_img, y2 + margin)
                 objimg = seek_image[y1c:y2c, x1c:x2c].copy()
 
-                target_only = draw_bbox(
+                target_only = draw_tracks(
                     base.copy(),
                     [target_box],
-                    CLASSES=CLASSES,
-                    Text_colors=(255, 255, 255),
-                    rectangle_colors=(0, 128, 0),
-                    tracking=True,
+                    text_color=(255, 255, 255),
+                    rectangle_color=(0, 128, 0),
                 )
-                all_boxes = draw_bbox(
-                    target_only.copy(),
-                    other_boxes,
-                    CLASSES=CLASSES,
-                    tracking=True,
-                )
+                all_boxes = draw_tracks(target_only.copy(), other_boxes)
                 signal.btn_run('btn_action_toggle', True)
                 signal.btn_run('btn_action_snapshot', True)
             else:
                 objimg = np.array([])
                 target_only = base.copy()
-                all_boxes = draw_bbox(
-                    base.copy(),
-                    tracked,
-                    CLASSES=CLASSES,
-                    tracking=True,
-                )
+                all_boxes = draw_tracks(base.copy(), tracked)
                 signal.btn_run('btn_action_toggle', False)
                 signal.btn_run('btn_action_snapshot', False)
 
@@ -1555,7 +1081,7 @@ class MainWindow(QMainWindow, form_class):
                 pass
             elif jump_count <= 8:
                 jump_count += 1
-                signal.btn_run('btn_play', False)
+                signal.btn_run('btn_track', False)
                 signal.btn_run('btn_action_toggle', False)
                 signal.btn_run('btn_action_snapshot', False)
                 signal.btn_run('btn_tab', False)
@@ -1569,7 +1095,7 @@ class MainWindow(QMainWindow, form_class):
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
                 pause = not pause
                 signal.pause_run(pause)
-                signal.btn_run('btn_play', True)
+                signal.btn_run('btn_track', True)
                 signal.btn_run('btn_tab', True)
                 signal.btn_run('btn_object', True)
                 signal.btn_run('btn_target', True)
@@ -1698,15 +1224,8 @@ class MainWindow(QMainWindow, form_class):
                 signal.video_end_run()
                 continue
 
-            # Keep the original worker-thread/UI flow while delegating
-            # detection + ID tracking to YOLO26m + OccluBoost + OSNet ReID.
-            tracked_bboxes = tracker.track_frame(
-                original_image,
-                conf=score_threshold,
-                iou=iou_threshold,
-                classes=[0],  # person
-                preferred_track_id=myobject,
-            )
+            # Run person detection, ReID and multi-object association off the GUI thread.
+            tracked_bboxes = tracker.track_frame(original_image)
             t2 = time.time()
             times.append(t2 - t1)
             times = times[-20:]
@@ -1737,7 +1256,7 @@ class MainWindow(QMainWindow, form_class):
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
                 qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
-                image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
+                image = draw_tracks(image, tracked_bboxes)
                 qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
 
                 if not target_only_view:
@@ -1768,12 +1287,16 @@ class MainWindow(QMainWindow, form_class):
                                     1, (0, 128, 0), 2)
                 image = cv2.putText(image, " %d frame" % vid.get(cv2.CAP_PROP_POS_FRAMES), (180, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                     1, (0, 0, 0), 2)
-                image = draw_bbox(image, copied_tracked_bboxes, CLASSES=CLASSES, Text_colors=(255, 255, 255),
-                                      rectangle_colors=(0, 128, 0), tracking=True)
+                image = draw_tracks(
+                    image,
+                    copied_tracked_bboxes,
+                    text_color=(255, 255, 255),
+                    rectangle_color=(0, 128, 0),
+                )
                 h, w, ch = image.shape
                 bytesPerLine = ch * w
                 qimg_1 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
-                image = draw_bbox(image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
+                image = draw_tracks(image, tracked_bboxes)
                 qimg_2 = QImage(image, w, h, bytesPerLine, QImage.Format_RGB888).rgbSwapped().copy()
 
                 if not target_only_view:
@@ -1800,6 +1323,6 @@ class MainWindow(QMainWindow, form_class):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    Annotation_tool = MainWindow()
-    Annotation_tool.show()
+    window = AnnotationWindow()
+    window.show()
     sys.exit(app.exec_())

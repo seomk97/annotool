@@ -1,51 +1,30 @@
 # Third-Party Notices
 
-This project contains original annotation UI/workflow code and integrates open-source detection and tracking components.
+Annotool integrates the following projects at runtime. Their source code is not vendored in this repository.
 
-## Current runtime: Ultralytics YOLO26 + BoxMOT OccluBoost + OSNet
+## Ultralytics
 
-- Ultralytics upstream: https://github.com/ultralytics/ultralytics
-- Used for: YOLO26 person detection
-- Integration: imported as the `ultralytics` Python dependency; not vendored into this repository
+- Project: Ultralytics
+- Upstream: https://github.com/ultralytics/ultralytics
+- Use: YOLO26 person detection
 - License: GNU AGPL v3
 - License copy: [THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt](THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt)
 
-- BoxMOT upstream: https://github.com/mikel-brostrom/boxmot
-- Used for: OccluBoost multi-object tracking and OSNet x1.0 MSMT17 person ReID runtime
-- Integration: imported as the `boxmot` Python dependency; not vendored into this repository
+## BoxMOT
+
+- Project: BoxMOT
+- Upstream: https://github.com/mikel-brostrom/boxmot
+- Use: OccluBoost multi-object tracking and ReID integration
+- Version targeted by this repository: 25.0.0
 - License: GNU AGPL v3
 - License copy: [THIRD_PARTY_LICENSES/BoxMOT-AGPL-3.0.txt](THIRD_PARTY_LICENSES/BoxMOT-AGPL-3.0.txt)
 
-The current project is distributed under AGPL-3.0 to keep the runtime integration license-compatible.
+## OSNet / Torchreid
 
-## Legacy backend: PyLessons TensorFlow YOLOv3 / YOLOv4
-
-- Upstream: https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
-- Historical code retained under: `pjtlibs/yolov3/`
+- Project: deep-person-reid (Torchreid)
+- Upstream: https://github.com/KaiyangZhou/deep-person-reid
+- Use: OSNet x1.0 MSMT17 person ReID model lineage used through BoxMOT
 - License: MIT
-- License copy: [THIRD_PARTY_LICENSES/PyLessons-MIT.txt](THIRD_PARTY_LICENSES/PyLessons-MIT.txt)
+- License copy: [THIRD_PARTY_LICENSES/OSNet-Torchreid-MIT.txt](THIRD_PARTY_LICENSES/OSNet-Torchreid-MIT.txt)
 
-## Legacy backend: Deep SORT
-
-- Upstream: https://github.com/nwojke/deep_sort
-- Historical code retained under: `pjtlibs/deep_sort/`
-- License: GNU GPL v3
-- License copy: [THIRD_PARTY_LICENSES/Deep-SORT-GPL-3.0.txt](THIRD_PARTY_LICENSES/Deep-SORT-GPL-3.0.txt)
-- Citation: Nicolai Wojke, Alex Bewley, Dietrich Paulus, *Simple Online and Realtime Tracking with a Deep Association Metric*, ICIP 2017.
-
-The retained copy follows the Deep SORT integration used by the historical PyLessons-based implementation.
-
-## Legacy Darknet / YOLOv4 weights
-
-- Upstream: https://github.com/AlexeyAB/darknet
-- Historical use: pretrained YOLOv4 Darknet weights loaded by the TensorFlow YOLO implementation
-- License: YOLO License / Darknet public-domain notice
-- License copy: [THIRD_PARTY_LICENSES/Darknet-YOLO-License.txt](THIRD_PARTY_LICENSES/Darknet-YOLO-License.txt)
-
-## Legacy Deep SORT appearance model
-
-- File: `pjtlibs/mars-small128.pb`
-- Purpose: appearance descriptor used by the historical Deep SORT backend
-- Related project/paper: Deep SORT / MARS person re-identification model
-
-The legacy files are retained to preserve the original 2020 implementation history; the modern runtime path does not import TensorFlow, the PyLessons YOLO implementation, or the Deep SORT encoder.
+The repository itself is distributed under AGPL-3.0.

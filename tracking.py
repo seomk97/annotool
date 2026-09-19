@@ -1,8 +1,5 @@
 import os
-import colorsys
-import random
 import threading
-from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -14,8 +11,7 @@ from ultralytics import YOLO
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26m.pt")
 REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17.pt")
-YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
-input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
+INPUT_SIZE = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
 DEVICE = os.environ.get("ANNOTOOL_DEVICE", "0" if torch.cuda.is_available() else "cpu")
 USE_HALF = torch.cuda.is_available() and DEVICE.lower() != "cpu"
 BOXMOT_DEVICE = (
@@ -23,163 +19,12 @@ BOXMOT_DEVICE = (
 )
 # Keep low-confidence person detections available to the tracker's recovery
 # stages. A larger inference size helps small/distant person detections.
-score_threshold = 0.05
-iou_threshold = 0.50
+SCORE_THRESHOLD = 0.05
+NMS_IOU_THRESHOLD = 0.50
 COAST_FRAMES = int(os.environ.get("ANNOTOOL_COAST_FRAMES", "2"))
-DEBUG_FPS = os.environ.get("ANNOTOOL_DEBUG_FPS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-@lru_cache(maxsize=8)
-def read_class_names(class_file_name=YOLO_COCO_CLASSES):
-    names = {}
-    with open(class_file_name, "r", encoding="utf-8") as data:
-        for class_id, name in enumerate(data):
-            names[class_id] = name.strip()
-    return names
-
-
-NUM_CLASS = read_class_names()
-
-
-@lru_cache(maxsize=8)
-def _bbox_colors(class_file_name=YOLO_COCO_CLASSES):
-    num_classes = len(read_class_names(class_file_name))
-    hsv_tuples = [(1.0 * x / num_classes, 1.0, 1.0) for x in range(num_classes)]
-    colors = [
-        tuple(int(channel * 255) for channel in colorsys.hsv_to_rgb(*hsv))
-        for hsv in hsv_tuples
-    ]
-    rng = random.Random(0)
-    rng.shuffle(colors)
-    return tuple(colors)
-
-
-class FisheyePreprocessor:
-    """Optional OpenCV fisheye undistortion for calibrated cameras."""
-
-    def __init__(self, calibration_path="", balance=0.2):
-        self.calibration_path = calibration_path.strip()
-        self.balance = float(balance)
-        self._K = None
-        self._D = None
-        self._calibration_size = None
-        self._maps = {}
-        self._lock = threading.RLock()
-
-    @property
-    def enabled(self):
-        return bool(self.calibration_path)
-
-    def configure(self, calibration_path="", balance=None):
-        """Switch fisheye correction at runtime and clear cached calibration maps."""
-        with self._lock:
-            self.calibration_path = str(calibration_path or "").strip()
-            if balance is not None:
-                self.balance = float(balance)
-            self._K = None
-            self._D = None
-            self._calibration_size = None
-            self._maps.clear()
-
-    def _load(self):
-        if self._K is not None:
-            return
-
-        path = os.path.abspath(os.path.expanduser(self.calibration_path))
-        if not os.path.isfile(path):
-            raise FileNotFoundError(f"Fisheye calibration file not found: {path}")
-
-        with np.load(path) as data:
-            if "K" not in data or "D" not in data:
-                raise ValueError("Fisheye calibration .npz must contain K and D arrays.")
-
-            K = np.asarray(data["K"], dtype=np.float64)
-            D = np.asarray(data["D"], dtype=np.float64).reshape(-1)
-
-            size = None
-            for key in ("DIM", "image_size", "size"):
-                if key in data:
-                    raw = np.asarray(data[key]).reshape(-1)
-                    if raw.size >= 2:
-                        size = (int(raw[0]), int(raw[1]))
-                    break
-
-        if K.shape != (3, 3):
-            raise ValueError(f"Fisheye K must be 3x3, got {K.shape}.")
-        if D.size != 4:
-            raise ValueError(f"OpenCV fisheye D must contain 4 coefficients, got {D.size}.")
-
-        self._K = K
-        self._D = D.reshape(4, 1)
-        self._calibration_size = size
-
-    def _maps_for(self, width, height):
-        key = (int(width), int(height))
-        with self._lock:
-            if key in self._maps:
-                return self._maps[key]
-
-            self._load()
-            K = self._K.copy()
-
-            if self._calibration_size:
-                calib_w, calib_h = self._calibration_size
-                if calib_w > 0 and calib_h > 0:
-                    sx = width / calib_w
-                    sy = height / calib_h
-                    K[0, 0] *= sx
-                    K[0, 2] *= sx
-                    K[1, 1] *= sy
-                    K[1, 2] *= sy
-
-            size = (int(width), int(height))
-            new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
-                K,
-                self._D,
-                size,
-                np.eye(3),
-                balance=self.balance,
-                new_size=size,
-            )
-            map1, map2 = cv2.fisheye.initUndistortRectifyMap(
-                K,
-                self._D,
-                np.eye(3),
-                new_K,
-                size,
-                cv2.CV_16SC2,
-            )
-            self._maps[key] = (map1, map2)
-            return map1, map2
-
-    def apply(self, frame):
-        if not self.enabled or frame is None:
-            return frame
-
-        height, width = frame.shape[:2]
-        map1, map2 = self._maps_for(width, height)
-        return cv2.remap(
-            frame,
-            map1,
-            map2,
-            interpolation=cv2.INTER_LINEAR,
-            borderMode=cv2.BORDER_CONSTANT,
-        )
-
-
-FISHEYE_CALIB = os.environ.get("ANNOTOOL_FISHEYE_CALIB", "")
-FISHEYE_BALANCE = float(os.environ.get("ANNOTOOL_FISHEYE_BALANCE", "0.2"))
-fisheye = FisheyePreprocessor(FISHEYE_CALIB, FISHEYE_BALANCE)
-
-
-def configure_fisheye(calibration_path="", balance=None):
-    """Enable fisheye correction with a calibration file, or disable it with an empty path."""
-    fisheye.configure(calibration_path, balance=balance)
-
-
-def preprocess_frame(frame):
-    """Apply optional camera preprocessing while leaving normal video untouched."""
-    return fisheye.apply(frame)
+from camera import preprocess_frame
 
 
 def _detection_iou(a, b):
@@ -238,7 +83,7 @@ def _suppress_duplicate_detections(detections):
     return np.ascontiguousarray(np.stack(kept), dtype=np.float32)
 
 
-class YOLOTrackerAdapter:
+class PersonTracker:
     """YOLO26 detector + BoxMOT OccluBoost + OSNet person ReID adapter.
 
     The Qt UI keeps its historical box format:
@@ -252,9 +97,9 @@ class YOLOTrackerAdapter:
     def __init__(
         self,
         model_path=MODEL_PATH,
-        conf=score_threshold,
-        iou=iou_threshold,
-        imgsz=input_size,
+        conf=SCORE_THRESHOLD,
+        iou=NMS_IOU_THRESHOLD,
+        imgsz=INPUT_SIZE,
         device=DEVICE,
         half=USE_HALF,
         reid_model=REID_MODEL,
@@ -298,7 +143,7 @@ class YOLOTrackerAdapter:
             max_age=146,
             min_hits=0,
             det_thresh=0.15,
-            iou_threshold=0.2957128153631725,
+            NMS_IOU_THRESHOLD=0.2957128153631725,
             use_cmc=True,
             cmc_method="sof",
             min_box_area=1,
@@ -394,12 +239,12 @@ class YOLOTrackerAdapter:
             if self.boxmot is not None:
                 self.boxmot.reset()
 
-    def _detect(self, frame, conf=None, iou=None, classes=(0,)):
+    def _detect(self, frame):
         result = self.model.predict(
             source=frame,
-            conf=self.conf if conf is None else conf,
-            iou=self.iou if iou is None else iou,
-            classes=list(classes) if classes is not None else None,
+            conf=self.conf,
+            iou=self.iou,
+            classes=[0],
             imgsz=self.imgsz,
             device=self.device,
             quantize=16 if self.half else None,
@@ -420,21 +265,12 @@ class YOLOTrackerAdapter:
         )
         return _suppress_duplicate_detections(detections)
 
-    def track_frame(
-        self,
-        frame,
-        conf=None,
-        iou=None,
-        classes=(0,),
-        preferred_track_id=None,
-    ):
-        del preferred_track_id  # BoxMOT association is independent of UI selection.
-
+    def track_frame(self, frame):
         with self._lock:
             if not self._prepared:
                 self.prepare()
 
-            detections = self._detect(frame, conf=conf, iou=iou, classes=classes)
+            detections = self._detect(frame)
             tracks = self.boxmot.update(detections, frame=frame)
 
         # BoxMOT AABB output:
@@ -501,116 +337,64 @@ class YOLOTrackerAdapter:
         ]
 
 
-tracker = YOLOTrackerAdapter()
-# Historical qt.py imports this name; keep it as an alias so the UI code does
-# not need to know which detection/tracking backend is active.
-yolo = tracker
+tracker = PersonTracker()
 
 
-def draw_bbox(
-    image,
-    bboxes,
-    CLASSES=YOLO_COCO_CLASSES,
-    show_label=True,
-    show_confidence=True,
-    Text_colors=(255, 255, 0),
-    rectangle_colors='',
-    tracking=False,
-):
-    """Legacy annotool renderer kept for UI compatibility."""
-    num_class = read_class_names(CLASSES)
-    colors = _bbox_colors(CLASSES)
-    image_h, image_w, _ = image.shape
+def draw_tracks(image, tracks, text_color=(255, 255, 0), rectangle_color=None):
+    """Draw person track IDs on a BGR frame."""
+    image_h, image_w = image.shape[:2]
+    bbox_thick = max(1, int(0.6 * (image_h + image_w) / 1000))
+    font_scale = 0.75 * bbox_thick
+    box_color = (50, 0, 255) if rectangle_color is None else rectangle_color
 
-    for bbox in bboxes:
-        coor = np.array(bbox[:4], dtype=np.int32)
-        score = bbox[4]
-        class_ind = int(bbox[5])
-        bbox_color = rectangle_colors if rectangle_colors != '' else colors[class_ind]
-        bbox_thick = int(0.6 * (image_h + image_w) / 1000)
-        if bbox_thick < 1:
-            bbox_thick = 1
-        font_scale = 0.75 * bbox_thick
+    for track in tracks:
+        x1, y1, x2, y2 = np.asarray(track[:4], dtype=np.int32)
+        track_id = int(track[4])
+        cv2.rectangle(image, (x1, y1), (x2, y2 + 3), box_color, bbox_thick * 2)
 
-        (x1, y1), (x2, y2) = (coor[0], coor[1]), (coor[2], coor[3] + 3)
-        cv2.rectangle(image, (x1, y1), (x2, y2), bbox_color, bbox_thick * 2)
-
-        if show_label:
-            score_str = " {:.2f}".format(score) if show_confidence else ""
-            if tracking:
-                score_str = " " + str(int(score))
-
-            label = "{}".format(num_class[class_ind]) + score_str
-            (text_width, text_height), baseline = cv2.getTextSize(
-                label,
-                cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                font_scale,
-                thickness=bbox_thick,
-            )
-            cv2.rectangle(
-                image,
-                (x1, y1),
-                (x1 + text_width, y1 - text_height - baseline),
-                bbox_color,
-                thickness=cv2.FILLED,
-            )
-            cv2.putText(
-                image,
-                label,
-                (x1, y1 - 4),
-                cv2.FONT_HERSHEY_COMPLEX_SMALL,
-                font_scale,
-                Text_colors,
-                bbox_thick,
-                lineType=cv2.LINE_AA,
-            )
+        label = f"person {track_id}"
+        (text_width, text_height), baseline = cv2.getTextSize(
+            label,
+            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+            font_scale,
+            thickness=bbox_thick,
+        )
+        cv2.rectangle(
+            image,
+            (x1, y1),
+            (x1 + text_width, y1 - text_height - baseline),
+            box_color,
+            thickness=cv2.FILLED,
+        )
+        cv2.putText(
+            image,
+            label,
+            (x1, y1 - 4),
+            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+            font_scale,
+            text_color,
+            bbox_thick,
+            lineType=cv2.LINE_AA,
+        )
 
     return image
 
-def Object_tracking(
-    model,
-    video_path,
-    output_path="",
-    input_size=input_size,
-    show=False,
-    CLASSES=YOLO_COCO_CLASSES,
-    score_threshold=score_threshold,
-    iou_threshold=0.3,
-    rectangle_colors="",
-    Track_only=None,
-):
-    """Load and annotate the first frame used by the existing object-select UI."""
-    del output_path, input_size, show, CLASSES
 
-    vid = cv2.VideoCapture(video_path)
-    ret, frame = vid.read()
-    vid.release()
-    if not ret:
+def create_tracking_preview(video_path):
+    """Track and write the first frame used by the object-selection UI."""
+    video = cv2.VideoCapture(video_path)
+    ok, frame = video.read()
+    video.release()
+    if not ok or frame is None:
         return []
 
     frame = preprocess_frame(frame)
-
-    track_only = Track_only or ["person"]
-    classes = [0] if "person" in track_only else None
-
-    model.reset()
-    tracked_bboxes = model.track_frame(
-        frame,
-        conf=score_threshold,
-        iou=iou_threshold,
-        classes=classes,
-    )
-
-    image = draw_bbox(
-        frame.copy(),
-        tracked_bboxes,
-        tracking=True,
-        rectangle_colors=rectangle_colors,
-    )
+    tracker.reset()
+    tracks = tracker.track_frame(frame)
+    image = draw_tracks(frame.copy(), tracks, rectangle_color=(255, 0, 0))
 
     os.makedirs("./captured", exist_ok=True)
     cv2.imwrite("./captured/frame.jpg", image)
 
-    # Preview must not leak its tracker state into the real worker-thread run.
-    model.reset()
-    return tracked_bboxes
+    tracker.reset()
+    return tracks
