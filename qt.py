@@ -1374,7 +1374,7 @@ class MainWindow(QMainWindow, form_class):
                 continue
 
             # Backend modernization: keep the original worker-thread/UI flow,
-            # but delegate detection + ID tracking to YOLO26s + BoT-SORT ReID.
+            # but delegate detection + ID tracking to YOLO26s + TrackTrack ReID.
             tracked_bboxes = tracker.track_frame(
                 original_image,
                 conf=score_threshold,
