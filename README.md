@@ -2,14 +2,14 @@
 
 영상에서 사람을 추적하면서 필요한 frame과 action 구간을 빠르게 기록하기 위해 만든 PyQt 기반 annotation tool입니다.
 
-2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + Deep OC-SORT + ReID**으로 현대화했습니다.
+2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 backend를 **YOLO26 + BoxMOT OccluBoost + OSNet x1.0 MSMT17**로 현대화했습니다.
 
 ## Current pipeline
 
 ```text
 Video
   → YOLO26 person detection
-  → Deep OC-SORT + ReID object tracking
+  → BoxMOT OccluBoost + OSNet x1.0 person ReID
   → PyQt annotation UI
   → Captured frames + JSON annotations
 ```
@@ -41,7 +41,7 @@ Video
 | 구성 요소 | 구현 |
 |---|---|
 | Object detection | Ultralytics YOLO26 |
-| Object tracking | Deep OC-SORT + ReID |
+| Object tracking | BoxMOT OccluBoost + OSNet x1.0 MSMT17 |
 | GUI | PyQt5 |
 | Video / image I/O | OpenCV |
 
@@ -56,7 +56,7 @@ Video
 - 수동 YOLO post-processing / NMS 경로
 - Deep SORT `mars-small128.pb` runtime dependency
 
-대신 `YOLODeep OC-SORT + ReIDer` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
+대신 `main.py` adapter가 YOLO26 detection 결과를 BoxMOT OccluBoost에 넘기고, OSNet x1.0 person ReID 결과를 포함한 track을 기존 UI 형식으로 변환합니다.
 
 pause / slider seek / list jump 시에는 UI 상태를 초기화하지 않고 tracker state만 reset하도록 유지했습니다.
 
@@ -104,7 +104,7 @@ python qt.py
 
 기본 모델은 `yolo26s.pt`이며 첫 실행 시 Ultralytics가 weight를 준비합니다.
 
-Tracking에는 별도의 appearance encoder인 `yolo26m-reid.onnx`를 사용합니다. 첫 tracking 실행 시 자동으로 다운로드되며 이후 로컬 캐시를 재사용합니다.
+Tracking에는 person ReID 전용 appearance encoder인 `osnet_x1_0_msmt17`을 사용합니다. BoxMOT가 첫 실행 시 weight를 자동으로 준비하며 이후 로컬 캐시를 재사용합니다.
 
 다른 Ultralytics detection model을 사용하려면 환경변수로 지정할 수 있습니다.
 
@@ -168,7 +168,7 @@ Ctrl+Q     Quit
 
 화면의 `person 10` 같은 숫자는 tracker가 현재 부여한 ID입니다. ID가 바뀌면 `Box No.`만 수정하며 object 이름과 annotation workspace는 유지됩니다.
 
-영상 파일을 선택하면 detector를 기다리지 않고 raw 첫 frame을 먼저 표시합니다. 이후 `Detect IDs`를 누르면 첫 frame에 tracker ID가 overlay됩니다.
+영상 파일을 선택하면 detector를 기다리지 않고 raw 첫 frame을 먼저 표시합니다. 이후 `Load`를 누르면 첫 frame에 tracker ID가 overlay됩니다.
 
 ### Custom action annotation
 
@@ -192,7 +192,7 @@ Action End
 
 ### Loading behavior
 
-첫 영상을 선택하면 YOLO26s / Deep OC-SORT ReID backend를 백그라운드에서 미리 준비합니다. `Load`를 누르면 별도의 진행창에서 model loading, GPU / tracker initialization, first-frame tracking 단계를 표시합니다. 모델과 predictor는 애플리케이션 세션 동안 재사용하고, 영상 변경이나 seek 시에는 tracker state만 reset합니다.
+첫 영상을 선택하면 YOLO26s / OccluBoost / OSNet x1.0 backend를 백그라운드에서 미리 준비합니다. `Load`를 누르면 별도의 진행창에서 model loading, GPU / tracker initialization, first-frame tracking 단계를 표시합니다. 모델과 predictor는 애플리케이션 세션 동안 재사용하고, 영상 변경이나 seek 시에는 tracker state만 reset합니다.
 
 ### Playback and window scaling
 
@@ -238,7 +238,8 @@ Video
 
 현재 runtime:
 
-- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / Deep OC-SORT + ReID, AGPL-3.0
+- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 detector, AGPL-3.0
+- [BoxMOT](https://github.com/mikel-brostrom/boxmot) — OccluBoost tracker + OSNet ReID integration, AGPL-3.0
 
 Legacy backend:
 
