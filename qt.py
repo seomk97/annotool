@@ -1037,11 +1037,7 @@ class MainWindow(QMainWindow, form_class):
                 pass
             else:
                 ret, img = vid.read()
-                if not ret:  # video end event
-                    pause = not pause
-                    signal.pause_run(pause)
-                    signal.video_end_run()
-                else:
+                if ret:
                     framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
             if jumped:
@@ -1074,7 +1070,6 @@ class MainWindow(QMainWindow, form_class):
                 pause = not pause
                 signal.pause_run(pause)
                 signal.btn_run('btn_play', True)
-                signal.btn_run('btn_action_toggle', True)
                 signal.btn_run('btn_tab', True)
                 signal.btn_run('btn_object', True)
                 signal.btn_run('btn_target', True)
@@ -1176,11 +1171,10 @@ class MainWindow(QMainWindow, form_class):
 
             if not ret:
                 if not pause:
-                    self.space_key()
-                self.video_end()
+                    pause = True
+                    signal.pause_run(True)
+                signal.video_end_run()
                 continue
-            else:
-                pass
 
             # Backend modernization: keep the original worker-thread/UI flow,
             # but delegate detection + ID tracking to YOLO26 + ByteTrack.
