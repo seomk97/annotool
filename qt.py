@@ -107,11 +107,12 @@ class MainWindow(QMainWindow, form_class):
 
         # Custom action recording state.
         self.active_action = None
-        self.btn_action_snapshot = QPushButton("Snapshot (N)", self.centralwidget)
-        self.btn_action_snapshot.setGeometry(1121, 560, 82, 30)
+        self.btn_action_snapshot = QPushButton("Action Snapshot (N)", self.centralwidget)
+        self.btn_action_snapshot.setGeometry(1121, 560, 170, 30)
         self.btn_action_snapshot.setEnabled(False)
-        self.btn_tab.setGeometry(1209, 560, 82, 30)
-        self.btn_tab.setText("Target Only")
+        self.btn_tab.setGeometry(1121, 600, 170, 30)
+        self.btn_tab.setText("Show Target Only (Tab)")
+        self.btn_folder.setGeometry(1121, 640, 170, 30)
 
         # Track Start and Play/Pause represent one user operation. Keep the
         # historical worker/pause implementation underneath, but expose one
@@ -199,7 +200,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_reset.setText("Reset (Q)")
         self.btn_target.setText("Box No. (C)")
         self.btn_action_toggle.setText("Action Start (B)")
-        self.btn_action_snapshot.setText("Snapshot (N)")
+        self.btn_action_snapshot.setText("Action Snapshot (N)")
 
         self.btn_up.setEnabled(True)
         self.btn_down.setEnabled(True)
