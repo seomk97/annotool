@@ -6,15 +6,13 @@ import threading
 import cv2
 import numpy as np
 import torch
-from boxmot.trackers.occluboost.tracker import OccluBoost
-from boxmot.trackers.occluboost.config import OccluBoostConfig
-from boxmot.reid.specs import ReIDConfig
+from boxmot import OccluBoost
 from ultralytics import YOLO
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
-REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17")
+REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17.pt")
 YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
 input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
 DEVICE = os.environ.get("ANNOTOOL_DEVICE", "0" if torch.cuda.is_available() else "cpu")
@@ -22,8 +20,6 @@ USE_HALF = torch.cuda.is_available() and DEVICE.lower() != "cpu"
 BOXMOT_DEVICE = (
     f"cuda:{DEVICE}" if DEVICE.isdigit() else DEVICE
 )
-REID_PRECISION = "fp16" if USE_HALF else "fp32"
-
 # Keep low-confidence person detections available to the tracker's recovery
 # stages. A larger inference size helps small/distant person detections.
 score_threshold = 0.05
@@ -84,30 +80,52 @@ class YOLOTrackerAdapter:
             self.model = YOLO(self.model_path)
 
     def _build_tracker(self):
-        reid = ReIDConfig(
-            model=self.reid_model,
-            device=BOXMOT_DEVICE,
-            precision=REID_PRECISION,
-            batch_size=32,
-        )
-
-        config = OccluBoostConfig(
-            max_age=90,
-            det_thresh=0.25,
-            track_low_thresh=0.05,
-            new_track_thresh=0.35,
-            instant_confirm_thresh=0.55,
-            confirm_hits=2,
-            tentative_max_age=3,
-            use_embeddings=True,
-        )
-
+        # BoxMOT 25.0.0 public API: configure live ReID directly on the
+        # tracker. The OSNet weights are downloaded lazily on first use.
         self.boxmot = OccluBoost(
-            config=config,
-            reid=reid,
+            use_embeddings=True,
+            reid_weights=self.reid_model,
+            device=BOXMOT_DEVICE,
+            half=self.half,
             per_class=False,
             class_ids=(0,),
-            class_names={0: "person"},
+            class_names={0: "person"),
+
+            # BoxMOT v25 tuned AABB defaults.
+            max_age=146,
+            min_hits=1,
+            det_thresh=0.5678626013369781,
+            iou_threshold=0.2957128153631725,
+            use_cmc=True,
+            cmc_method="sof",
+            min_box_area=73,
+            aspect_ratio_thresh=1.4888137942764672,
+            lambda_iou=1.0784558316374715,
+            lambda_mhd=0.304435887183232,
+            lambda_shape=1.6709449476805447,
+            use_dlo_boost=True,
+            use_duo_boost=False,
+            use_rich_s=False,
+            use_sb=True,
+            use_vt=True,
+            dlo_boost_coef=1.2061962091907352,
+            recovery_appearance_thresh=0.6732855110134396,
+            recovery_iou_thresh=0.24380051350243462,
+            recovery_max_age=113,
+            feat_alpha=0.8324072665785186,
+            track_low_thresh=0.04473431588067598,
+            use_second_pass=True,
+            second_iou_thresh=0.8131671757478834,
+            second_appearance_thresh=0.364089272226479,
+            second_pass_max_age=8,
+            second_pass_min_hits=7,
+            new_track_thresh=0.7128242784621849,
+            confirm_hits=2,
+            instant_confirm_thresh=0.6783889178413256,
+            tentative_max_age=3,
+            duplicate_iou_thresh=0.9571823233925608,
+            lambda_emb_multiplier=2.9476295884842885,
+            gta_enabled=False,
         )
 
     def prepare(self, progress=None):
