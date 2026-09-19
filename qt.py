@@ -150,6 +150,7 @@ class MainWindow(QMainWindow, form_class):
         self._load_dialog = None
         self._model_prepare_started = False
         self._model_prepare_error = None
+        self._last_fisheye_calib = FISHEYE_CALIB
 
         self.previewReady.connect(self._screen_load_finished)
         self.previewProgress.connect(self._update_load_progress)
@@ -360,6 +361,34 @@ class MainWindow(QMainWindow, form_class):
         )
         if video_path_buffer[0] == "":
             return
+
+        default_mode = 1 if fisheye.enabled else 0
+        camera_mode, ok = QInputDialog.getItem(
+            self,
+            "Camera Mode",
+            "Input camera:",
+            ["Normal", "Fisheye"],
+            default_mode,
+            False,
+        )
+        if not ok:
+            return
+
+        if camera_mode == "Fisheye":
+            start_path = self._last_fisheye_calib or ""
+            calibration_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select fisheye calibration",
+                start_path,
+                "NumPy calibration (*.npz)",
+            )
+            if not calibration_path:
+                return
+
+            self._last_fisheye_calib = calibration_path
+            configure_fisheye(calibration_path)
+        else:
+            configure_fisheye("")
 
         video_path = video_path_buffer
         self.label.setText(video_path[0])
