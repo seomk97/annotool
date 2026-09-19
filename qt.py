@@ -71,7 +71,7 @@ score_threshold = 0.05
 iou_threshold = 0.70
 CLASSES = YOLO_COCO_CLASSES
 
-# The YOLO26s + Deep OC-SORT ReID adapter is imported from main.py as `tracker`.
+# The YOLO26s + BoxMOT OccluBoost + OSNet ReID adapter is imported from main.py as `tracker`.
 # Keep detector/tracker state outside the Qt button/signal state machine.
 
 class SignalOfTrack(QObject):
