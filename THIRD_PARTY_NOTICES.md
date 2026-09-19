@@ -2,10 +2,10 @@
 
 This project contains original annotation UI/workflow code and integrates open-source detection and tracking components.
 
-## Current runtime: Ultralytics YOLO26 + TrackTrack
+## Current runtime: Ultralytics YOLO26 + Deep OC-SORT
 
 - Upstream: https://github.com/ultralytics/ultralytics
-- Used for: YOLO26 person detection and TrackTrack multi-object tracking with ReID
+- Used for: YOLO26 person detection and Deep OC-SORT multi-object tracking with dedicated ReID
 - Integration: imported as the `ultralytics` Python dependency; not vendored into this repository
 - License: GNU AGPL v3
 - License copy: [THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt](THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt)
