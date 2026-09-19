@@ -37,6 +37,84 @@ def read_class_names(class_file_name=YOLO_COCO_CLASSES):
 NUM_CLASS = read_class_names()
 
 
+def _box_iou(a, b):
+    ax1, ay1, ax2, ay2 = a[:4]
+    bx1, by1, bx2, by2 = b[:4]
+
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+
+    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _containment_ratio(a, b):
+    ax1, ay1, ax2, ay2 = a[:4]
+    bx1, by1, bx2, by2 = b[:4]
+
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+
+    area_a = max(1.0, (ax2 - ax1) * (ay2 - ay1))
+    area_b = max(1.0, (bx2 - bx1) * (by2 - by1))
+    return inter / min(area_a, area_b)
+
+
+def _center_distance_ratio(a, b):
+    ax1, ay1, ax2, ay2 = a[:4]
+    bx1, by1, bx2, by2 = b[:4]
+
+    acx, acy = (ax1 + ax2) * 0.5, (ay1 + ay2) * 0.5
+    bcx, bcy = (bx1 + bx2) * 0.5, (by1 + by2) * 0.5
+    distance = ((acx - bcx) ** 2 + (acy - bcy) ** 2) ** 0.5
+
+    scale = max(
+        1.0,
+        min(
+            max(ax2 - ax1, ay2 - ay1),
+            max(bx2 - bx1, by2 - by1),
+        ),
+    )
+    return distance / scale
+
+
+def _suppress_duplicate_person_tracks(candidates):
+    """Keep one track when multiple IDs clearly describe the same person.
+
+    This is intentionally conservative: real overlapping people should remain
+    separate, while nested/nearly-identical duplicate boxes are collapsed.
+    Each candidate is (confidence, box_row).
+    """
+    kept = []
+    for candidate in sorted(candidates, key=lambda item: item[0], reverse=True):
+        _, box = candidate
+        duplicate = False
+
+        for _, kept_box in kept:
+            iou = _box_iou(box, kept_box)
+            containment = _containment_ratio(box, kept_box)
+            center_ratio = _center_distance_ratio(box, kept_box)
+
+            same_person_geometry = (
+                iou >= 0.72
+                or (containment >= 0.88 and center_ratio <= 0.22)
+            )
+            if same_person_geometry:
+                duplicate = True
+                break
+
+        if not duplicate:
+            kept.append(candidate)
+
+    return kept
+
+
 class YOLOTrackerAdapter:
     """Adapter that preserves annotool's historical tracking interface.
 
@@ -156,9 +234,7 @@ class YOLOTrackerAdapter:
         class_ids = boxes.cls.int().cpu().tolist()
         confidences = boxes.conf.cpu().tolist()
 
-        # Some tracker/detector combinations can expose the same track ID more
-        # than once in a frame. The annotool UI assumes one box per ID, so keep
-        # only the highest-confidence observation for each track.
+        # First collapse repeated rows carrying the exact same track ID.
         best_by_id = {}
         for box, track_id, class_id, confidence in zip(
             xyxy, track_ids, class_ids, confidences
@@ -178,7 +254,12 @@ class YOLOTrackerAdapter:
             if track_id not in best_by_id or candidate[0] > best_by_id[track_id][0]:
                 best_by_id[track_id] = candidate
 
-        return [best_by_id[track_id][1] for track_id in sorted(best_by_id)]
+        # TrackTrack can occasionally keep two different IDs on one person
+        # during recovery/occlusion. Collapse only strongly overlapping or
+        # nested boxes, keeping the detector observation with higher confidence.
+        deduped = _suppress_duplicate_person_tracks(list(best_by_id.values()))
+        deduped.sort(key=lambda item: item[1][4])
+        return [box for _, box in deduped]
 
 
 tracker = YOLOTrackerAdapter()
