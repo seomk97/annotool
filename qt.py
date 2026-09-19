@@ -107,12 +107,15 @@ class MainWindow(QMainWindow, form_class):
 
         # Custom action recording state.
         self.active_action = None
+        # Keep the lower-right annotation controls in one 30 px vertical stack.
+        self.btn_action_toggle.setGeometry(1121, 500, 170, 30)
         self.btn_action_snapshot = QPushButton("Action Snapshot (N)", self.centralwidget)
-        self.btn_action_snapshot.setGeometry(1121, 560, 170, 30)
+        self.btn_action_snapshot.setGeometry(1121, 540, 170, 30)
         self.btn_action_snapshot.setEnabled(False)
-        self.btn_tab.setGeometry(1121, 600, 170, 30)
+        self.btn_tab.setGeometry(1121, 580, 170, 30)
         self.btn_tab.setText("Show Target Only (Tab)")
-        self.btn_folder.setGeometry(1121, 640, 170, 30)
+        self.btn_folder.setGeometry(1121, 620, 170, 30)
+        self.btn_reset.setGeometry(1121, 660, 170, 30)
 
         # Track Start and Play/Pause represent one user operation. Keep the
         # historical worker/pause implementation underneath, but expose one
