@@ -44,8 +44,8 @@ pause = False
 objimg = np.array([])
 set_speed = 1
 target_only_view = False
-qimg_1 = 0
-qimg_2 = 0
+qimg_1 = QImage()
+qimg_2 = QImage()
 tracking = False
 slider_moved = False
 jump_to_frame = 0
@@ -134,7 +134,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_delete.setShortcut(Qt.Key.Key_Delete)
         self.btn_action_toggle.setShortcut('b')
 
-    @pyqtSlot(QPixmap)
+    @pyqtSlot(QImage)
     def pixmap_update(self, image):
         self.label_mainscreen.setPixmap(QPixmap.fromImage(image))
 
@@ -842,15 +842,17 @@ class MainWindow(QMainWindow, form_class):
 
     def target_only_view(self):
         global target_only_view
-        if not target_only_view:
-            target_only_view = True
-            self.label_mainscreen.setPixmap(QPixmap.fromImage(qimg_1))
 
+        # Before the first tracked frame arrives there is no alternate image
+        # to display yet. Ignore the toggle instead of passing an invalid
+        # placeholder into QPixmap.fromImage().
+        next_image = qimg_1 if not target_only_view else qimg_2
+        if next_image.isNull():
             return
-        else:
-            target_only_view = False
-            self.label_mainscreen.setPixmap(QPixmap.fromImage(qimg_2))
-            return
+
+        target_only_view = not target_only_view
+        self.label_mainscreen.setPixmap(QPixmap.fromImage(next_image))
+        return
 
     def slider_pressed(self):
         self.btn_tab.setEnabled(False)
