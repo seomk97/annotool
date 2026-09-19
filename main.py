@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
 TRACKER_CONFIG = os.environ.get(
     "ANNOTOOL_TRACKER_CONFIG",
-    os.path.join(BASE_DIR, "configs", "tracktrack_reid.yaml"),
+    os.path.join(BASE_DIR, "configs", "deepocsort_reid.yaml"),
 )
 YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
 input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
