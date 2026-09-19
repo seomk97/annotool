@@ -89,7 +89,7 @@ class YOLOTrackerAdapter:
             half=self.half,
             per_class=False,
             class_ids=(0,),
-            class_names={0: "person"),
+            class_names={0: "person"},
 
             # BoxMOT v25 tuned AABB defaults.
             max_age=146,
