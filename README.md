@@ -1,56 +1,147 @@
 # annotool
 
-YOLOv4 + Deep SORT 기반의 영상 객체 / 행동 annotation 도구입니다.  
-영상에서 검출·추적된 객체를 보면서 target을 지정하고, 필요한 frame과 action 구간을 기록해 이미지와 JSON으로 저장할 수 있도록 PyQt5 GUI를 구성했습니다.
+영상에서 사람을 추적하면서 필요한 frame과 action 구간을 빠르게 기록하기 위해 만든 PyQt 기반 annotation tool입니다.
 
-> 2020년에 제작한 개인 프로젝트로, 당시의 TensorFlow / CUDA 환경을 기준으로 작성되어 있습니다.
+2020년에는 **TensorFlow YOLOv4 + Deep SORT**를 backend로 사용했고, 2026년에는 기존 버튼·단축키·threading 기반 annotation workflow를 유지한 채 detection / tracking backend만 **YOLO26 + ByteTrack**으로 현대화했습니다.
 
-## Pipeline
+## Current pipeline
 
 ```text
 Video
-  → Object Detection (YOLOv4)
-  → Object Tracking (Deep SORT)
-  → PyQt Annotation UI
-  → Captured Frames + JSON Annotation
+  → YOLO26 person detection
+  → ByteTrack object tracking
+  → PyQt annotation UI
+  → Captured frames + JSON annotations
 ```
 
-## 구현 범위
+현재 runtime에서 UI는 detector / tracker 내부 구현을 직접 다루지 않습니다. `main.py`의 adapter가 tracking 결과를 기존 UI가 사용하던 다음 형식으로 변환합니다.
 
-이 repository의 detection / tracking backend는 기존 open-source 구현을 기반으로 하고, 그 위에 annotation workflow와 GUI를 구성했습니다.
+```text
+[x1, y1, x2, y2, track_id, class_id]
+```
+
+덕분에 object 선택, target 변경, pause / seek, action 기록 같은 기존 UI state machine은 그대로 유지됩니다.
+
+## 구현 범위
 
 직접 구현한 부분:
 
 - PyQt5 기반 annotation GUI
 - 영상 재생 / 일시정지 / 배속 / frame 이동
-- tracking 결과에서 annotation 대상 object 선택
+- tracking ID를 이용한 annotation 대상 object 선택
 - tracking ID가 바뀌었을 때 target 변경
 - action 시작 / 종료 frame 기록
-- 저장할 frame 및 label 목록 관리
-- 선택 항목 삭제 및 frame 이동
+- frame / label 목록 관리와 선택 항목 삭제
 - captured image / JSON annotation 저장
 - keyboard shortcut 중심의 annotation workflow
+- worker thread와 Qt signal을 이용한 영상 처리 / UI update 분리
 
-기존 구현을 활용한 부분:
+현재 backend:
 
-| 구성 요소 | Upstream / 출처 |
+| 구성 요소 | 구현 |
 |---|---|
-| YOLOv3 / YOLOv4 TensorFlow implementation | [pythonlessons/TensorFlow-2.x-YOLOv3](https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3) |
-| Deep SORT tracking implementation | [nwojke/deep_sort](https://github.com/nwojke/deep_sort) 계열 구현 |
-| YOLOv4 pretrained Darknet weights | [AlexeyAB/darknet](https://github.com/AlexeyAB/darknet) |
-| Deep SORT appearance model | `mars-small128.pb`, Deep SORT / MARS appearance descriptor |
+| Object detection | Ultralytics YOLO26 |
+| Object tracking | ByteTrack |
+| GUI | PyQt5 |
+| Video / image I/O | OpenCV |
 
-특히 `pjtlibs/yolov3/`의 YOLOv4 TensorFlow 코드와 Darknet weight loader는 PyLessons 구현을 기반으로 하며, `pjtlibs/deep_sort/` 역시 해당 프로젝트에서 사용한 Deep SORT integration을 기반으로 합니다.
+## Backend modernization
 
-이 repository는 GitHub의 fork 기능으로 생성한 repository는 아니지만, 위 backend 구현을 가져와 annotation tool에 맞게 통합한 프로젝트입니다.
+기존 버전은 PyLessons의 TensorFlow YOLOv4 구현과 Deep SORT appearance encoder에 의존했습니다.
+
+현대화하면서 다음 부분을 제거했습니다.
+
+- TensorFlow 2.3 runtime dependency
+- Darknet weight → TensorFlow model 변환
+- 수동 YOLO post-processing / NMS 경로
+- Deep SORT `mars-small128.pb` runtime dependency
+
+대신 `YOLOByteTracker` adapter 하나가 Ultralytics의 tracking 결과를 기존 UI 형식으로 변환합니다.
+
+pause / slider seek / list jump 시에는 UI 상태를 초기화하지 않고 tracker state만 reset하도록 유지했습니다.
+
+> `pjtlibs/yolov3/`, `pjtlibs/deep_sort/`, `mars-small128.pb`는 2020년 구현 provenance를 보존하기 위해 repository에 남겨두었으며 현재 runtime에서는 import하지 않습니다.
 
 ## Screenshot
 
 ![annotool screenshot](https://user-images.githubusercontent.com/70502705/101143621-81594580-365a-11eb-9bcf-f81cfa04b7a7.png)
 
-## 실행 환경
+## Setup
 
-당시 확인한 환경:
+권장 환경:
+
+- Python 3.11+
+- Windows / Linux
+- CUDA GPU optional
+
+```bash
+git clone https://github.com/seomk97/annotool.git
+cd annotool
+
+pip install -r requirements.txt
+python qt.py
+```
+
+기본 모델은 `yolo26n.pt`이며 첫 실행 시 Ultralytics가 weight를 준비합니다.
+
+다른 Ultralytics detection model을 사용하려면 환경변수로 지정할 수 있습니다.
+
+```bash
+ANNOTOOL_YOLO_MODEL=yolo26s.pt python qt.py
+```
+
+Windows PowerShell:
+
+```powershell
+$env:ANNOTOOL_YOLO_MODEL="yolo26s.pt"
+python qt.py
+```
+
+2020년 당시 TensorFlow / CUDA 환경은 `requirements-legacy.txt`에 보존했습니다.
+
+## 주요 UI
+
+| 기능 | 설명 |
+|---|---|
+| File | annotation할 영상 선택 |
+| Load | 첫 frame 및 tracking ID 확인 |
+| Object | 기록할 object ID 선택 |
+| Target | tracking ID가 변경된 경우 target 변경 |
+| Track start | worker thread에서 detection + tracking 시작 |
+| Play / Pause | 영상 재생 / 일시정지 |
+| Arrow keys | 재생 속도 조절 |
+| Make JSON | 현재 기록을 JSON으로 저장 |
+| Delete | 선택된 기록 삭제 |
+| Action start | action 시작 / 종료 구간 기록 |
+| Show target only | 선택한 target만 표시 |
+| Open folder | 저장 폴더 열기 |
+| Reset | 현재 작업 초기화 |
+
+각 버튼의 주요 shortcut은 GUI 버튼에 함께 표시됩니다.
+
+## Output
+
+annotation 결과는 `captured/` 아래에 object 단위 폴더로 저장됩니다.
+
+- 선택된 frame 이미지
+- frame 번호 / label
+- action 시작 / 종료 정보
+- JSON annotation
+
+같은 object 번호를 다른 영상에서 사용할 경우 기존 폴더와 충돌하지 않도록 별도 폴더가 생성됩니다.
+
+## Legacy implementation
+
+2020년 원본 pipeline:
+
+```text
+Video
+  → TensorFlow YOLOv4
+  → Deep SORT
+  → PyQt annotation UI
+```
+
+당시 환경:
 
 - Ubuntu 18.04
 - CUDA 10.1
@@ -59,82 +150,22 @@ Video
 - OpenCV 4.1.2
 - PyQt5 5.15.1
 
-의존성은 `requirements.txt`에 기록되어 있습니다.
+관련 source와 dependency 기록은 현재 repository와 `requirements-legacy.txt`에 보존되어 있습니다.
 
-## Setup
+## Upstream / licenses
 
-```bash
-git clone https://github.com/seomk97/annotool.git
-cd annotool
+현재 runtime:
 
-pip install -r requirements.txt
-```
+- [Ultralytics](https://github.com/ultralytics/ultralytics) — YOLO26 / ByteTrack, AGPL-3.0
 
-YOLOv4 Darknet weight를 준비합니다.
+Legacy backend:
 
-- Official upstream: [AlexeyAB/darknet YOLOv4 weights](https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights)
-- 저장 위치: `pjtlibs/yolov4.weights`
+- [PyLessons TensorFlow-2.x-YOLOv3](https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3) — YOLOv3 / YOLOv4 TensorFlow implementation, MIT
+- [nwojke/deep_sort](https://github.com/nwojke/deep_sort) — Deep SORT, GPL-3.0
+- [AlexeyAB/darknet](https://github.com/AlexeyAB/darknet) — YOLOv4 Darknet weights / implementation
 
-최종 구조:
-
-```text
-pjtlibs/
-├─ yolov4.weights
-├─ mars-small128.pb
-├─ coco.names
-├─ yolov3/
-└─ deep_sort/
-```
-
-실행:
-
-```bash
-python qt.py
-```
-
-## 주요 UI
-
-| 기능 | 설명 |
-|---|---|
-| File | annotation할 영상 선택 |
-| Load | 첫 frame 로드 |
-| Object | 추적 / 기록할 object 설정 |
-| Target | tracking ID가 변경된 경우 target 변경 |
-| Track start | detection + tracking 시작 |
-| Play / Pause | 영상 재생 / 일시정지 |
-| Arrow keys | 재생 속도 조절 |
-| Make JSON | 현재 기록된 annotation을 JSON으로 저장 |
-| Delete | 선택된 기록 삭제 |
-| Action start | action 시작 / 종료 구간 기록 |
-| Show target only | 선택한 target만 표시 |
-| Open folder | 저장 폴더 열기 |
-| Reset | 현재 작업 초기화 |
-
-각 버튼의 shortcut은 GUI 버튼에 함께 표시됩니다.
-
-## Output
-
-annotation 결과는 `captured/` 아래에 object 단위 폴더로 저장됩니다.
-
-- 선택된 frame 이미지
-- frame 번호 / label 정보
-- action 구간 정보
-- JSON annotation
-
-같은 object 번호를 다른 영상에서 사용할 경우 기존 폴더와 충돌하지 않도록 별도 폴더가 생성됩니다.
-
-## Upstream / Acknowledgements
-
-- PyLessons — TensorFlow 2.x YOLOv3 / YOLOv4 implementation  
-  https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
-- Alexey Bochkovskiy et al. — Darknet / YOLOv4  
-  https://github.com/AlexeyAB/darknet
-- Nicolai Wojke et al. — Deep SORT  
-  https://github.com/nwojke/deep_sort
-- Deep SORT paper: *Simple Online and Realtime Tracking with a Deep Association Metric*, ICIP 2017
-
-자세한 third-party provenance와 license 사본은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 정리했습니다.
+프로젝트 라이선스는 AGPL-3.0이며, third-party provenance와 원문 라이선스 사본은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 정리했습니다.
 
 ## Notes
 
-이 프로젝트는 detector나 tracker 자체를 새로 제안한 프로젝트가 아니라, 기존 YOLOv4 + Deep SORT pipeline을 실제 영상 annotation 작업에 사용할 수 있도록 GUI와 annotation workflow로 통합한 도구입니다.
+이 프로젝트의 핵심은 detector나 tracker 자체를 새로 제안하는 것이 아니라, object tracking 결과를 사람이 빠르게 검토하고 frame / action annotation으로 기록할 수 있도록 만든 GUI와 interaction workflow입니다.
