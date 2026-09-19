@@ -1,0 +1,21 @@
+# BoT-SORT tuned for annotool: prioritize stable person IDs over raw speed.
+# Based on Ultralytics botsort.yaml.
+
+tracker_type: botsort
+
+# Detection / association thresholds
+track_high_thresh: 0.25
+track_low_thresh: 0.10
+new_track_thresh: 0.25
+track_buffer: 60
+match_thresh: 0.80
+fuse_score: True
+
+# Camera motion compensation
+gmc_method: sparseOptFlow
+
+# Appearance-based re-identification
+proximity_thresh: 0.30
+appearance_thresh: 0.75
+with_reid: True
+model: auto
