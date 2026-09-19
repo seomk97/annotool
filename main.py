@@ -7,11 +7,19 @@ import numpy as np
 from ultralytics import YOLO
 
 
-MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26n.pt")
-YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # retained for UI compatibility
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
+TRACKER_CONFIG = os.environ.get(
+    "ANNOTOOL_TRACKER_CONFIG",
+    os.path.join(BASE_DIR, "configs", "botsort_reid.yaml"),
+)
+YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
 input_size = 640
-score_threshold = 0.3
-iou_threshold = 0.1
+
+# Keep low-confidence person detections available to BoT-SORT's second-stage
+# association, while using a normal NMS overlap threshold for crowded scenes.
+score_threshold = 0.10
+iou_threshold = 0.70
 
 
 def read_class_names(class_file_name=YOLO_COCO_CLASSES):
@@ -41,7 +49,7 @@ class YOLOByteTracker:
         model_path=MODEL_PATH,
         conf=score_threshold,
         iou=iou_threshold,
-        tracker_config="bytetrack.yaml",
+        tracker_config=TRACKER_CONFIG,
     ):
         self.model_path = model_path
         self.conf = conf
