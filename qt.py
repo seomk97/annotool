@@ -161,6 +161,16 @@ class MainWindow(QMainWindow, form_class):
         self.btn_delete.setShortcut(Qt.Key.Key_Delete)
         self.btn_action_toggle.setShortcut('b')
 
+        # Start the expensive detector/tracker warm-up as soon as the window
+        # exists. In normal use it runs while the user is choosing a video, so
+        # the first Load click usually needs only first-frame inference.
+        if not yolo.is_prepared and not self._model_prepare_started:
+            self._model_prepare_started = True
+            threading.Thread(
+                target=self._prepare_model_background,
+                daemon=True,
+            ).start()
+
     @pyqtSlot(QImage)
     def pixmap_update(self, image):
         self._set_main_image(image)
@@ -258,12 +268,6 @@ class MainWindow(QMainWindow, form_class):
             self.label_end_frame.setText('%d' % num_of_frame)
             temp_vid.release()
 
-            if not yolo.is_prepared and not self._model_prepare_started:
-                self._model_prepare_started = True
-                threading.Thread(
-                    target=self._prepare_model_background,
-                    daemon=True,
-                ).start()
         else:
             pass
         if not video_path:
