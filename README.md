@@ -102,20 +102,20 @@ python qt.py
 
 `torch`와 `torchvision`은 runtime dependency로 명시되어 있으며, 깨끗한 환경에서는 `pip install -r requirements.txt`로 함께 설치됩니다. 이미 다른 Python 환경에 설치된 PyTorch가 깨져 있거나 CUDA build를 직접 선택해야 하는 경우에는 [PyTorch installation guide](https://docs.pytorch.org/get-started/locally/)에 따라 해당 환경의 PyTorch를 먼저 설치한 뒤 requirements를 설치하세요.
 
-기본 모델은 `yolo26l.pt`이며 입력 크기는 `1280`입니다. 첫 실행 시 Ultralytics가 weight를 준비합니다. 필요하면 `ANNOTOOL_IMGSZ` 환경변수로 입력 크기를 바꿀 수 있습니다.
+기본 모델은 `yolo26m.pt`이며 입력 크기는 `960`입니다. 첫 실행 시 Ultralytics가 weight를 준비합니다. 필요하면 `ANNOTOOL_IMGSZ` 환경변수로 입력 크기를 바꿀 수 있습니다.
 
 Tracking에는 person ReID 전용 appearance encoder인 `osnet_x1_0_msmt17`을 사용합니다. BoxMOT가 첫 실행 시 weight를 자동으로 준비하며 이후 로컬 캐시를 재사용합니다.
 
 다른 Ultralytics detection model을 사용하려면 환경변수로 지정할 수 있습니다.
 
 ```bash
-ANNOTOOL_YOLO_MODEL=yolo26l.pt python qt.py
+ANNOTOOL_YOLO_MODEL=yolo26m.pt python qt.py
 ```
 
 Windows PowerShell:
 
 ```powershell
-$env:ANNOTOOL_YOLO_MODEL="yolo26l.pt"
+$env:ANNOTOOL_YOLO_MODEL="yolo26m.pt"
 python qt.py
 ```
 
@@ -192,7 +192,7 @@ Action End
 
 ### Loading behavior
 
-첫 영상을 선택하면 YOLO26l / OccluBoost / OSNet x1.0 backend를 백그라운드에서 미리 준비합니다. `Load`를 누르면 별도의 진행창에서 model loading, GPU / tracker initialization, first-frame tracking 단계를 표시합니다. 모델과 predictor는 애플리케이션 세션 동안 재사용하고, 영상 변경이나 seek 시에는 tracker state만 reset합니다.
+첫 영상을 선택하면 YOLO26m / OccluBoost / OSNet x1.0 backend를 백그라운드에서 미리 준비합니다. `Load`를 누르면 별도의 진행창에서 model loading, GPU / tracker initialization, first-frame tracking 단계를 표시합니다. 모델과 predictor는 애플리케이션 세션 동안 재사용하고, 영상 변경이나 seek 시에는 tracker state만 reset합니다.
 
 ### Playback and window scaling
 
