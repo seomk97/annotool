@@ -62,8 +62,8 @@ w_checked = False
 r_checked = False
 s_checked = False
 
-score_threshold = 0.3
-iou_threshold = 0.1
+score_threshold = 0.10
+iou_threshold = 0.70
 CLASSES = YOLO_COCO_CLASSES
 
 # The YOLO26 + ByteTrack adapter is imported from main.py as `tracker`.
@@ -226,7 +226,7 @@ class MainWindow(QMainWindow, form_class):
                 '',
                 input_size=input_size,
                 show=True,
-                iou_threshold=0.3,
+                iou_threshold=iou_threshold,
                 rectangle_colors=(255, 0, 0),
                 Track_only=["person"],
             )
