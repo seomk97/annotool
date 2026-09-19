@@ -154,18 +154,31 @@ class YOLOTrackerAdapter:
         xyxy = boxes.xyxy.cpu().numpy()
         track_ids = boxes.id.int().cpu().tolist()
         class_ids = boxes.cls.int().cpu().tolist()
+        confidences = boxes.conf.cpu().tolist()
 
-        return [
-            [
-                float(box[0]),
-                float(box[1]),
-                float(box[2]),
-                float(box[3]),
-                int(track_id),
-                int(class_id),
-            ]
-            for box, track_id, class_id in zip(xyxy, track_ids, class_ids)
-        ]
+        # Some tracker/detector combinations can expose the same track ID more
+        # than once in a frame. The annotool UI assumes one box per ID, so keep
+        # only the highest-confidence observation for each track.
+        best_by_id = {}
+        for box, track_id, class_id, confidence in zip(
+            xyxy, track_ids, class_ids, confidences
+        ):
+            track_id = int(track_id)
+            candidate = (
+                float(confidence),
+                [
+                    float(box[0]),
+                    float(box[1]),
+                    float(box[2]),
+                    float(box[3]),
+                    track_id,
+                    int(class_id),
+                ],
+            )
+            if track_id not in best_by_id or candidate[0] > best_by_id[track_id][0]:
+                best_by_id[track_id] = candidate
+
+        return [best_by_id[track_id][1] for track_id in sorted(best_by_id)]
 
 
 tracker = YOLOTrackerAdapter()
