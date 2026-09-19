@@ -124,11 +124,10 @@ python qt.py
 | 기능 | 설명 |
 |---|---|
 | File | annotation할 영상 선택 |
-| Load | 첫 frame 및 tracking ID 확인 |
-| Object | 기록할 object ID 선택 |
-| Target | tracking ID가 변경된 경우 target 변경 |
-| Track start | worker thread에서 detection + tracking 시작 |
-| Play / Pause | 영상 재생 / 일시정지 |
+| Detect IDs | 첫 frame에 detection / tracking ID overlay 표시 |
+| Object | 사용자 정의 object 이름과 초기 track ID 지정 |
+| Target | 화면의 현재 track ID만 변경; object 이름/저장 identity는 유지 |
+| Start / Pause / Resume | tracking worker 최초 시작과 재생/일시정지를 하나의 버튼에서 처리 |
 | Arrow keys | 재생 속도 조절 (`0.1x` 단위, 최저 `0.1x`) |
 | Make JSON | 현재 기록을 JSON으로 저장 |
 | Delete | 선택된 기록 삭제 |
@@ -138,6 +137,14 @@ python qt.py
 | Reset | 현재 작업 초기화 |
 
 각 버튼의 주요 shortcut은 GUI 버튼에 함께 표시됩니다.
+
+### Object identity and track ID
+
+`Object`는 사용자가 정하는 논리적인 이름입니다. 예를 들어 `person_A`, `customer_01`처럼 지정할 수 있고 결과 폴더와 JSON 파일도 이 이름을 기준으로 저장됩니다.
+
+화면의 `person 10` 같은 숫자는 tracker가 현재 부여한 ID입니다. ID가 바뀌면 `Target ID`만 수정하며 object 이름과 annotation workspace는 유지됩니다.
+
+영상 파일을 선택하면 detector를 기다리지 않고 raw 첫 frame을 먼저 표시합니다. 이후 `Detect IDs`를 누르면 첫 frame에 tracker ID가 overlay됩니다.
 
 ### Custom action annotation
 
