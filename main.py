@@ -6,7 +6,9 @@ import threading
 import cv2
 import numpy as np
 import torch
-from boxmot import OccluBoost, OccluBoostConfig, ReIDConfig
+from boxmot.trackers.occluboost.tracker import OccluBoost
+from boxmot.trackers.occluboost.config import OccluBoostConfig
+from boxmot.reid.specs import ReIDConfig
 from ultralytics import YOLO
 
 
