@@ -71,7 +71,7 @@ score_threshold = 0.05
 iou_threshold = 0.70
 CLASSES = YOLO_COCO_CLASSES
 
-# The YOLO26s + TrackTrack ReID adapter is imported from main.py as `tracker`.
+# The YOLO26s + Deep OC-SORT ReID adapter is imported from main.py as `tracker`.
 # Keep detector/tracker state outside the Qt button/signal state machine.
 
 class SignalOfTrack(QObject):
@@ -107,9 +107,11 @@ class MainWindow(QMainWindow, form_class):
 
         # Custom action recording state.
         self.active_action = None
-        self.btn_action_snapshot = QPushButton("Action Snapshot (N)", self.centralwidget)
-        self.btn_action_snapshot.setGeometry(1121, 560, 170, 40)
+        self.btn_action_snapshot = QPushButton("Snapshot (N)", self.centralwidget)
+        self.btn_action_snapshot.setGeometry(1121, 560, 82, 30)
         self.btn_action_snapshot.setEnabled(False)
+        self.btn_tab.setGeometry(1209, 560, 82, 30)
+        self.btn_tab.setText("Target Only")
 
         # Track Start and Play/Pause represent one user operation. Keep the
         # historical worker/pause implementation underneath, but expose one
@@ -197,7 +199,7 @@ class MainWindow(QMainWindow, form_class):
         self.btn_reset.setText("Reset (Q)")
         self.btn_target.setText("Box No. (C)")
         self.btn_action_toggle.setText("Action Start (B)")
-        self.btn_action_snapshot.setText("Action Snapshot (N)")
+        self.btn_action_snapshot.setText("Snapshot (N)")
 
         self.btn_up.setEnabled(True)
         self.btn_down.setEnabled(True)
@@ -1643,7 +1645,7 @@ class MainWindow(QMainWindow, form_class):
                 continue
 
             # Backend modernization: keep the original worker-thread/UI flow,
-            # but delegate detection + ID tracking to YOLO26s + TrackTrack ReID.
+            # but delegate detection + ID tracking to YOLO26s + Deep OC-SORT ReID.
             tracked_bboxes = tracker.track_frame(
                 original_image,
                 conf=score_threshold,
