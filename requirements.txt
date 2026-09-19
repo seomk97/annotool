@@ -4,4 +4,4 @@ PyQt5>=5.15,<6
 torch
 torchvision
 ultralytics>=8.4,<9
-boxmot>=25,<26
+boxmot==25.0.0
