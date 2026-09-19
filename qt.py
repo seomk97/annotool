@@ -1669,8 +1669,8 @@ class MainWindow(QMainWindow, form_class):
                 signal.video_end_run()
                 continue
 
-            # Backend modernization: keep the original worker-thread/UI flow,
-            # but delegate detection + ID tracking to YOLO26s + Deep OC-SORT ReID.
+            # Keep the original worker-thread/UI flow while delegating
+            # detection + ID tracking to YOLO26m + OccluBoost + OSNet ReID.
             tracked_bboxes = tracker.track_frame(
                 original_image,
                 conf=score_threshold,
@@ -1726,8 +1726,12 @@ class MainWindow(QMainWindow, form_class):
                 y2 = int(copied_tracked_bboxes[0][3])
 
                 box_margin = 17
-
-                objimg = np.array(original_image[y1-box_margin:y2+box_margin, x1-box_margin:x2+box_margin])  # target image size to be saved
+                h_img, w_img = original_image.shape[:2]
+                x1c = max(0, x1 - box_margin)
+                y1c = max(0, y1 - box_margin)
+                x2c = min(w_img, x2 + box_margin)
+                y2c = min(h_img, y2 + box_margin)
+                objimg = original_image[y1c:y2c, x1c:x2c].copy()
 
                 image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                                     1, (0, 0, 255), 2)
@@ -1748,8 +1752,8 @@ class MainWindow(QMainWindow, form_class):
                 else:
                     signal.pixmap_run(qimg_1)
 
-            fps2 = int(fps)
-            print(framecount, ", fps:", fps2)
+            if DEBUG_FPS:
+                print(framecount, ", fps:", int(fps))
 
             # Pace sub-1x speeds by time and use an accumulator above 1x so
             # fractional speeds such as 1.1x and 1.7x advance the source
