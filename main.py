@@ -161,7 +161,9 @@ class YOLOTrackerAdapter:
             aspect_ratio_thresh=10.0,
             lambda_iou=1.0784558316374715,
             lambda_mhd=0.304435887183232,
-            lambda_shape=1.6709449476805447,
+            # Football players change pose/aspect ratio aggressively; do not
+            # let bbox shape dominate identity association.
+            lambda_shape=0.20,
             use_dlo_boost=True,
             use_duo_boost=False,
             use_rich_s=False,
@@ -183,6 +185,11 @@ class YOLOTrackerAdapter:
             instant_confirm_thresh=0.55,
             tentative_max_age=3,
             duplicate_iou_thresh=0.75,
+
+            # Large legitimate pose changes (crouch, tackle, jump, fall) can
+            # look like abnormal bbox shrink/motion to AMS. Disable it for
+            # sports footage and rely more on motion + appearance association.
+            ams_enabled=False,
             lambda_emb_multiplier=2.9476295884842885,
             gta_enabled=False,
         )
