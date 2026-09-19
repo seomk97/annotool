@@ -1266,7 +1266,7 @@ class MainWindow(QMainWindow, form_class):
 
                 self.active_action = action
                 self.btn_action_toggle.setText(f"Action End: {action}\n(B)")
-                    return
+                return
 
             if self.active_action is None:
                 self.btn_action_toggle.setText("Action Start (B)")
