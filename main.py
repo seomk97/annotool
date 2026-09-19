@@ -70,6 +70,17 @@ class FisheyePreprocessor:
     def enabled(self):
         return bool(self.calibration_path)
 
+    def configure(self, calibration_path="", balance=None):
+        """Switch fisheye correction at runtime and clear cached calibration maps."""
+        with self._lock:
+            self.calibration_path = str(calibration_path or "").strip()
+            if balance is not None:
+                self.balance = float(balance)
+            self._K = None
+            self._D = None
+            self._calibration_size = None
+            self._maps.clear()
+
     def _load(self):
         if self._K is not None:
             return
@@ -159,6 +170,11 @@ class FisheyePreprocessor:
 FISHEYE_CALIB = os.environ.get("ANNOTOOL_FISHEYE_CALIB", "")
 FISHEYE_BALANCE = float(os.environ.get("ANNOTOOL_FISHEYE_BALANCE", "0.2"))
 fisheye = FisheyePreprocessor(FISHEYE_CALIB, FISHEYE_BALANCE)
+
+
+def configure_fisheye(calibration_path="", balance=None):
+    """Enable fisheye correction with a calibration file, or disable it with an empty path."""
+    fisheye.configure(calibration_path, balance=balance)
 
 
 def preprocess_frame(frame):
