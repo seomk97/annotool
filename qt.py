@@ -104,13 +104,18 @@ class MainWindow(QMainWindow, form_class):
 
         # Preserve the original 1301x751 visual layout, but scale widget
         # geometries when the user resizes the main window.
-        self._base_central_size = QSize(self.centralwidget.size())
+        # qtui.ui was designed for a 1301x751 main window with a 21 px
+        # menu bar, so the central widget's logical design area is 1301x730.
+        # Do not read centralwidget.size() here: before the first show/layout
+        # pass Qt may still report a temporary tiny size.
+        self._base_central_size = QSize(1301, 730)
         self._base_geometries = {
             child: QRect(child.geometry())
             for child in self.centralwidget.children()
             if isinstance(child, QWidget)
         }
         self.setMinimumSize(900, 520)
+        self.resize(1301, 751)
         self.label_mainscreen.setScaledContents(False)
         self.label_mainscreen.setAlignment(Qt.AlignCenter)
         self._current_main_image = QImage()
