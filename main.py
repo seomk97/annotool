@@ -6,22 +6,24 @@ import threading
 import cv2
 import numpy as np
 import torch
+from boxmot import OccluBoost, OccluBoostConfig, ReIDConfig
 from ultralytics import YOLO
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
-TRACKER_CONFIG = os.environ.get(
-    "ANNOTOOL_TRACKER_CONFIG",
-    os.path.join(BASE_DIR, "configs", "deepocsort_reid.yaml"),
-)
+REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17")
 YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
 input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
 DEVICE = os.environ.get("ANNOTOOL_DEVICE", "0" if torch.cuda.is_available() else "cpu")
 USE_HALF = torch.cuda.is_available() and DEVICE.lower() != "cpu"
+BOXMOT_DEVICE = (
+    f"cuda:{DEVICE}" if DEVICE.isdigit() else DEVICE
+)
+REID_PRECISION = "fp16" if USE_HALF else "fp32"
 
-# Keep low-confidence person detections available to TrackTrack's second-stage
-# association. A larger inference size helps small/distant person detections.
+# Keep low-confidence person detections available to the tracker's recovery
+# stages. A larger inference size helps small/distant person detections.
 score_threshold = 0.05
 iou_threshold = 0.70
 
@@ -37,101 +39,15 @@ def read_class_names(class_file_name=YOLO_COCO_CLASSES):
 NUM_CLASS = read_class_names()
 
 
-def _box_iou(a, b):
-    ax1, ay1, ax2, ay2 = a[:4]
-    bx1, by1, bx2, by2 = b[:4]
-
-    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
-    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
-    inter = iw * ih
-
-    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
-    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
-    union = area_a + area_b - inter
-    return inter / union if union > 0 else 0.0
-
-
-def _containment_ratio(a, b):
-    ax1, ay1, ax2, ay2 = a[:4]
-    bx1, by1, bx2, by2 = b[:4]
-
-    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
-    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
-    inter = iw * ih
-
-    area_a = max(1.0, (ax2 - ax1) * (ay2 - ay1))
-    area_b = max(1.0, (bx2 - bx1) * (by2 - by1))
-    return inter / min(area_a, area_b)
-
-
-def _center_distance_ratio(a, b):
-    ax1, ay1, ax2, ay2 = a[:4]
-    bx1, by1, bx2, by2 = b[:4]
-
-    acx, acy = (ax1 + ax2) * 0.5, (ay1 + ay2) * 0.5
-    bcx, bcy = (bx1 + bx2) * 0.5, (by1 + by2) * 0.5
-    distance = ((acx - bcx) ** 2 + (acy - bcy) ** 2) ** 0.5
-
-    scale = max(
-        1.0,
-        min(
-            max(ax2 - ax1, ay2 - ay1),
-            max(bx2 - bx1, by2 - by1),
-        ),
-    )
-    return distance / scale
-
-
-def _suppress_duplicate_person_tracks(candidates, preferred_track_id=None):
-    """Keep one track when multiple IDs clearly describe the same person.
-
-    This is intentionally conservative: real overlapping people should remain
-    separate, while nested/nearly-identical duplicate boxes are collapsed.
-    Each candidate is (confidence, box_row).
-    """
-    kept = []
-    ordered = sorted(
-        candidates,
-        key=lambda item: (
-            item[1][4] == preferred_track_id,
-            item[0],
-        ),
-        reverse=True,
-    )
-    for candidate in ordered:
-        _, box = candidate
-        duplicate = False
-
-        for _, kept_box in kept:
-            iou = _box_iou(box, kept_box)
-            containment = _containment_ratio(box, kept_box)
-            center_ratio = _center_distance_ratio(box, kept_box)
-
-            same_person_geometry = (
-                iou >= 0.72
-                or (containment >= 0.88 and center_ratio <= 0.22)
-            )
-            if same_person_geometry:
-                duplicate = True
-                break
-
-        if not duplicate:
-            kept.append(candidate)
-
-    return kept
-
-
 class YOLOTrackerAdapter:
-    """Adapter that preserves annotool's historical tracking interface.
+    """YOLO26 detector + BoxMOT OccluBoost + OSNet person ReID adapter.
 
-    The UI expects each tracked box as:
+    The Qt UI keeps its historical box format:
         [x1, y1, x2, y2, track_id, class_id]
 
-    The model, predictor, CUDA context, ReID hook and tracker objects are kept
-    alive for the full application session. Session changes reset only tracker
-    state, avoiding repeated predictor/model initialization.
+    YOLO performs detection only. OccluBoost owns temporal association,
+    occlusion recovery and duplicate suppression, while OSNet x1.0 MSMT17
+    supplies person appearance embeddings.
     """
 
     def __init__(
@@ -139,19 +55,21 @@ class YOLOTrackerAdapter:
         model_path=MODEL_PATH,
         conf=score_threshold,
         iou=iou_threshold,
-        tracker_config=TRACKER_CONFIG,
         imgsz=input_size,
         device=DEVICE,
         half=USE_HALF,
+        reid_model=REID_MODEL,
     ):
         self.model_path = model_path
         self.conf = conf
         self.iou = iou
-        self.tracker_config = tracker_config
         self.imgsz = imgsz
         self.device = device
         self.half = half
+        self.reid_model = reid_model
+
         self.model = None
+        self.boxmot = None
         self._prepared = False
         self._lock = threading.RLock()
 
@@ -159,25 +77,39 @@ class YOLOTrackerAdapter:
     def is_prepared(self):
         return self._prepared
 
-    def _ensure_model(self):
+    def _ensure_detector(self):
         if self.model is None:
             self.model = YOLO(self.model_path)
 
-    def _reset_tracker_state(self):
-        if self.model is None or self.model.predictor is None:
-            return
+    def _build_tracker(self):
+        reid = ReIDConfig(
+            model=self.reid_model,
+            device=BOXMOT_DEVICE,
+            precision=REID_PRECISION,
+            batch_size=32,
+        )
 
-        predictor = self.model.predictor
-        for active_tracker in getattr(predictor, "trackers", []) or []:
-            reset = getattr(active_tracker, "reset", None)
-            if callable(reset):
-                reset()
+        config = OccluBoostConfig(
+            max_age=90,
+            det_thresh=0.25,
+            track_low_thresh=0.05,
+            new_track_thresh=0.35,
+            instant_confirm_thresh=0.55,
+            confirm_hits=2,
+            tentative_max_age=3,
+            use_embeddings=True,
+        )
 
-        if hasattr(predictor, "vid_path"):
-            predictor.vid_path = [None] * len(predictor.vid_path)
+        self.boxmot = OccluBoost(
+            config=config,
+            reid=reid,
+            per_class=False,
+            class_ids=(0,),
+            class_names={0: "person"},
+        )
 
     def prepare(self, progress=None):
-        """Load and warm the detector/tracker once per application session."""
+        """Load detector and initialize BoxMOT/OSNet once per app session."""
         with self._lock:
             if self._prepared:
                 if progress:
@@ -185,16 +117,13 @@ class YOLOTrackerAdapter:
                 return
 
             if progress:
-                progress("Loading YOLO26s model...")
-            self._ensure_model()
+                progress("Loading YOLO26s detector...")
+            self._ensure_detector()
 
-            if progress:
-                progress("Initializing GPU and TrackTrack ReID...")
+            # Warm the YOLO predictor/CUDA path.
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
-            self.model.track(
+            self.model.predict(
                 source=dummy,
-                persist=True,
-                tracker=self.tracker_config,
                 conf=self.conf,
                 iou=self.iou,
                 classes=[0],
@@ -204,16 +133,61 @@ class YOLOTrackerAdapter:
                 verbose=False,
             )
 
-            self._reset_tracker_state()
-            self._prepared = True
+            if progress:
+                progress("Loading OccluBoost + OSNet x1.0 ReID...")
+            self._build_tracker()
 
+            # BoxMOT constructs the ReID backend lazily. A single synthetic
+            # person detection initializes/downloads OSNet now, so normal
+            # playback does not pay the first-use cost.
+            dummy_det = np.array(
+                [[
+                    self.imgsz * 0.25,
+                    self.imgsz * 0.10,
+                    self.imgsz * 0.75,
+                    self.imgsz * 0.90,
+                    0.99,
+                    0.0,
+                ]],
+                dtype=np.float32,
+            )
+            self.boxmot.update(dummy_det, frame=dummy)
+            self.boxmot.reset()
+
+            self._prepared = True
             if progress:
                 progress("Model ready")
 
     def reset(self):
-        """Reset IDs and temporal state without rebuilding the predictor."""
+        """Reset temporal IDs while retaining loaded YOLO and OSNet weights."""
         with self._lock:
-            self._reset_tracker_state()
+            if self.boxmot is not None:
+                self.boxmot.reset()
+
+    def _detect(self, frame, conf=None, iou=None, classes=(0,)):
+        result = self.model.predict(
+            source=frame,
+            conf=self.conf if conf is None else conf,
+            iou=self.iou if iou is None else iou,
+            classes=list(classes) if classes is not None else None,
+            imgsz=self.imgsz,
+            device=self.device,
+            half=self.half,
+            verbose=False,
+        )[0]
+
+        boxes = result.boxes
+        if boxes is None or len(boxes) == 0:
+            return np.empty((0, 6), dtype=np.float32)
+
+        xyxy = boxes.xyxy.detach().cpu().numpy().astype(np.float32, copy=False)
+        confidence = boxes.conf.detach().cpu().numpy().astype(np.float32, copy=False)
+        class_ids = boxes.cls.detach().cpu().numpy().astype(np.float32, copy=False)
+
+        return np.ascontiguousarray(
+            np.column_stack((xyxy, confidence, class_ids)),
+            dtype=np.float32,
+        )
 
     def track_frame(
         self,
@@ -223,61 +197,42 @@ class YOLOTrackerAdapter:
         classes=(0,),
         preferred_track_id=None,
     ):
+        del preferred_track_id  # BoxMOT association is independent of UI selection.
+
         with self._lock:
             if not self._prepared:
                 self.prepare()
 
-            result = self.model.track(
-                source=frame,
-                persist=True,
-                tracker=self.tracker_config,
-                conf=self.conf if conf is None else conf,
-                iou=self.iou if iou is None else iou,
-                classes=list(classes) if classes is not None else None,
-                imgsz=self.imgsz,
-                device=self.device,
-                half=self.half,
-                verbose=False,
-            )[0]
+            detections = self._detect(frame, conf=conf, iou=iou, classes=classes)
+            tracks = self.boxmot.update(detections, frame=frame)
 
-        boxes = result.boxes
-        if boxes is None or len(boxes) == 0 or boxes.id is None:
+        if tracks is None or len(tracks) == 0:
             return []
 
-        xyxy = boxes.xyxy.cpu().numpy()
-        track_ids = boxes.id.int().cpu().tolist()
-        class_ids = boxes.cls.int().cpu().tolist()
-        confidences = boxes.conf.cpu().tolist()
-
-        # First collapse repeated rows carrying the exact same track ID.
+        # BoxMOT AABB output:
+        # [x1, y1, x2, y2, track_id, confidence, class_id, detection_index]
         best_by_id = {}
-        for box, track_id, class_id, confidence in zip(
-            xyxy, track_ids, class_ids, confidences
-        ):
-            track_id = int(track_id)
+        for row in np.asarray(tracks):
+            track_id = int(row[4])
+            confidence = float(row[5])
             candidate = (
-                float(confidence),
+                confidence,
                 [
-                    float(box[0]),
-                    float(box[1]),
-                    float(box[2]),
-                    float(box[3]),
+                    float(row[0]),
+                    float(row[1]),
+                    float(row[2]),
+                    float(row[3]),
                     track_id,
-                    int(class_id),
+                    int(row[6]),
                 ],
             )
-            if track_id not in best_by_id or candidate[0] > best_by_id[track_id][0]:
+            if track_id not in best_by_id or confidence > best_by_id[track_id][0]:
                 best_by_id[track_id] = candidate
 
-        # TrackTrack can occasionally keep two different IDs on one person
-        # during recovery/occlusion. Collapse only strongly overlapping or
-        # nested boxes, keeping the detector observation with higher confidence.
-        deduped = _suppress_duplicate_person_tracks(
-            list(best_by_id.values()),
-            preferred_track_id=preferred_track_id,
-        )
-        deduped.sort(key=lambda item: item[1][4])
-        return [box for _, box in deduped]
+        return [
+            best_by_id[track_id][1]
+            for track_id in sorted(best_by_id)
+        ]
 
 
 tracker = YOLOTrackerAdapter()
