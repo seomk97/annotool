@@ -2,6 +2,7 @@ import os
 import colorsys
 import random
 import threading
+from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -25,8 +26,10 @@ BOXMOT_DEVICE = (
 score_threshold = 0.05
 iou_threshold = 0.50
 COAST_FRAMES = int(os.environ.get("ANNOTOOL_COAST_FRAMES", "2"))
+DEBUG_FPS = os.environ.get("ANNOTOOL_DEBUG_FPS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+@lru_cache(maxsize=8)
 def read_class_names(class_file_name=YOLO_COCO_CLASSES):
     names = {}
     with open(class_file_name, "r", encoding="utf-8") as data:
@@ -36,6 +39,19 @@ def read_class_names(class_file_name=YOLO_COCO_CLASSES):
 
 
 NUM_CLASS = read_class_names()
+
+
+@lru_cache(maxsize=8)
+def _bbox_colors(class_file_name=YOLO_COCO_CLASSES):
+    num_classes = len(read_class_names(class_file_name))
+    hsv_tuples = [(1.0 * x / num_classes, 1.0, 1.0) for x in range(num_classes)]
+    colors = [
+        tuple(int(channel * 255) for channel in colorsys.hsv_to_rgb(*hsv))
+        for hsv in hsv_tuples
+    ]
+    rng = random.Random(0)
+    rng.shuffle(colors)
+    return tuple(colors)
 
 
 class FisheyePreprocessor:
@@ -487,24 +503,8 @@ def draw_bbox(
 ):
     """Legacy annotool renderer kept for UI compatibility."""
     num_class = read_class_names(CLASSES)
-    num_classes = len(num_class)
+    colors = _bbox_colors(CLASSES)
     image_h, image_w, _ = image.shape
-
-    hsv_tuples = [(1.0 * x / num_classes, 1.0, 1.0) for x in range(num_classes)]
-    colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-    colors = list(
-        map(
-            lambda x: (
-                int(x[0] * 255),
-                int(x[1] * 255),
-                int(x[2] * 255),
-            ),
-            colors,
-        )
-    )
-
-    random.seed(0)
-    random.shuffle(colors)
 
     for bbox in bboxes:
         coor = np.array(bbox[:4], dtype=np.int32)
