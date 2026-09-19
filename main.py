@@ -96,6 +96,12 @@ class YOLOByteTracker:
         return tracked_bboxes
 
 
+tracker = YOLOByteTracker()
+# Historical qt.py imports this name; keep it as an alias so the UI code does
+# not need to know which detection/tracking backend is active.
+yolo = tracker
+
+
 def draw_bbox(
     image,
     bboxes,
