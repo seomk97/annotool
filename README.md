@@ -49,6 +49,7 @@ git clone https://github.com/seomk97/annotool.git
 cd annotool
 
 uv sync
+uv run python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 uv run python run.py
 ```
 
@@ -57,6 +58,7 @@ uv run python run.py
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 pip install -e .
 python run.py
 ```
