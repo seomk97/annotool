@@ -1,97 +1,212 @@
 import os
+
 import cv2
 import numpy as np
-import tensorflow as tf
-# from pjtlibs.yolov3.yolov3 import Create_Yolov3
-from pjtlibs.yolov3.yolov4 import Create_Yolo
-from pjtlibs.yolov3.utils import load_yolo_weights, image_preprocess, postprocess_boxes, nms, draw_bbox, read_class_names
-
-from pjtlibs.deep_sort import nn_matching
-from pjtlibs.deep_sort.detection import Detection
-from pjtlibs.deep_sort.tracker import Tracker
-from pjtlibs.deep_sort import generate_detections as gdet
-
-YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # coco 클래스 경로
-input_size = 512  # 인풋 사이즈
-Darknet_weights = "./pjtlibs/yolov4.weights"  # your darknet weight path
-
-yolo = Create_Yolo(input_size=input_size)  # 텐서플로우 네트워크 모델
-load_yolo_weights(yolo, Darknet_weights)  # 다크넷 웨이트를 텐서플로우 모델로 로드
+from ultralytics import YOLO
 
 
-def Object_tracking(YoloV3, video_path, output_path, input_size, show=False, CLASSES=YOLO_COCO_CLASSES,
-                    score_threshold=0.3, iou_threshold=0.1, rectangle_colors='', Track_only=[]):
-    # Definition of the parameters
-    max_cosine_distance = 0.4
-    nn_budget = None
-    # framecount = 0
+MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26n.pt")
+YOLO_COCO_CLASSES = "./pjtlibs/coco.names"  # retained for UI compatibility
+input_size = 640
+score_threshold = 0.3
+iou_threshold = 0.1
 
-    # initialize deep sort object
-    model_filename = "./pjtlibs/mars-small128.pb"  # deep sort 웨이트
-    encoder = gdet.create_box_encoder(model_filename, batch_size=1)
-    metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-    tracker = Tracker(metric)
 
-    if video_path:
-        vid = cv2.VideoCapture(video_path)  # detect on video
+def read_class_names(class_file_name=YOLO_COCO_CLASSES):
+    names = {}
+    with open(class_file_name, "r", encoding="utf-8") as data:
+        for class_id, name in enumerate(data):
+            names[class_id] = name.strip()
+    return names
 
-    NUM_CLASS = read_class_names(CLASSES)  # name strip 하는 커스텀함수 from utils
-    key_list = list(NUM_CLASS.keys())
-    val_list = list(NUM_CLASS.values())
 
-    while True:
-        _, img = vid.read()
+NUM_CLASS = read_class_names()
 
-        try:
-            original_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-        except:
-            break
 
-        image_data = image_preprocess(np.copy(original_image), [input_size, input_size])  # 인풋 프레임 전처리
-        image_data = tf.expand_dims(image_data, 0)
+class YOLOByteTracker:
+    """Small adapter that preserves the old annotool tracking interface.
 
-        pred_bbox = YoloV3.predict(image_data)
+    The UI expects each tracked box as:
+        [x1, y1, x2, y2, track_id, class_id]
 
-        pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
-        pred_bbox = tf.concat(pred_bbox, axis=0)
+    Ultralytics owns detector/tracker internals; this adapter deliberately keeps
+    them out of qt.py so the original button/threading workflow can remain
+    unchanged.
+    """
 
-        bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
-        bboxes = nms(bboxes, iou_threshold, method='nms')  # 신뢰도 낮은 박스 제거하는 커스텀 함수 from utils
+    def __init__(
+        self,
+        model_path=MODEL_PATH,
+        conf=score_threshold,
+        iou=iou_threshold,
+        tracker_config="bytetrack.yaml",
+    ):
+        self.model_path = model_path
+        self.conf = conf
+        self.iou = iou
+        self.tracker_config = tracker_config
+        self.model = None
 
-        # extract bboxes to boxes (x, y, width, height), scores and names
-        boxes, scores, names = [], [], []
-        for bbox in bboxes:
-            if len(Track_only) != 0 and NUM_CLASS[int(bbox[5])] in Track_only or len(Track_only) == 0:
-                boxes.append([bbox[0].astype(int), bbox[1].astype(int), bbox[2].astype(int) - bbox[0].astype(int), bbox[3].astype(int) - bbox[1].astype(int)])
-                scores.append(bbox[4])
-                names.append(NUM_CLASS[int(bbox[5])])
+    def _ensure_model(self):
+        if self.model is None:
+            self.model = YOLO(self.model_path)
 
-        # Obtain all the detections for the given frame.
-        boxes = np.array(boxes)
-        names = np.array(names)
-        scores = np.array(scores)
-        features = np.array(encoder(original_image, boxes))
-        detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in zip(boxes, scores, names, features)]
+    def reset(self):
+        """Reset only stream/tracker state while keeping UI state untouched."""
+        if self.model is not None:
+            # Rebuilding the predictor recreates Ultralytics tracker state on
+            # the next frame without reloading model weights.
+            self.model.predictor = None
 
-        # Pass detections to the deepsort object and obtain the track information.
-        tracker.predict()
-        tracker.update(detections)
+    def track_frame(self, frame, conf=None, iou=None, classes=(0,)):
+        self._ensure_model()
 
-        # Obtain info from the tracks
+        result = self.model.track(
+            source=frame,
+            persist=True,
+            tracker=self.tracker_config,
+            conf=self.conf if conf is None else conf,
+            iou=self.iou if iou is None else iou,
+            classes=list(classes) if classes is not None else None,
+            verbose=False,
+        )[0]
+
+        boxes = result.boxes
+        if boxes is None or len(boxes) == 0 or boxes.id is None:
+            return []
+
+        xyxy = boxes.xyxy.cpu().numpy()
+        track_ids = boxes.id.int().cpu().tolist()
+        class_ids = boxes.cls.int().cpu().tolist()
+
         tracked_bboxes = []
-        for track in tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue
-            bbox = track.to_tlbr()  # Get the corrected/predicted bounding box
-            class_name = track.get_class()  # Get the class name of particular object
-            tracking_id = track.track_id  # Get the ID for the particular track
-            index = key_list[val_list.index(class_name)]  # Get predicted object index by object name
-            tracked_bboxes.append(bbox.tolist() + [tracking_id, index])  # Structure data, that we could use it with our draw_bbox function
+        for box, track_id, class_id in zip(xyxy, track_ids, class_ids):
+            tracked_bboxes.append(
+                [
+                    float(box[0]),
+                    float(box[1]),
+                    float(box[2]),
+                    float(box[3]),
+                    int(track_id),
+                    int(class_id),
+                ]
+            )
+        return tracked_bboxes
 
-        if len(tracked_bboxes) != 0:
-            image = draw_bbox(original_image, tracked_bboxes, CLASSES=CLASSES, tracking=True)
-            if not os.path.isdir('./captured'):
-                os.mkdir('./captured')
-            cv2.imwrite("./captured/frame.jpg", image)
-            return
+
+def draw_bbox(
+    image,
+    bboxes,
+    CLASSES=YOLO_COCO_CLASSES,
+    show_label=True,
+    show_confidence=True,
+    Text_colors=(255, 255, 0),
+    rectangle_colors="",
+    tracking=False,
+):
+    """Draw boxes using the legacy annotool bbox layout."""
+    class_names = NUM_CLASS if CLASSES == YOLO_COCO_CLASSES else read_class_names(CLASSES)
+    image_h, image_w = image.shape[:2]
+    bbox_thick = max(1, int(0.6 * (image_h + image_w) / 1000))
+    font_scale = 0.75 * bbox_thick
+
+    for bbox in bboxes:
+        if len(bbox) < 6:
+            continue
+
+        x1, y1, x2, y2 = [int(v) for v in bbox[:4]]
+        value = bbox[4]
+        class_id = int(bbox[5])
+
+        bbox_color = rectangle_colors if rectangle_colors != "" else (0, 255, 0)
+        cv2.rectangle(image, (x1, y1), (x2, y2), bbox_color, bbox_thick * 2)
+
+        if not show_label:
+            continue
+
+        class_name = class_names.get(class_id, str(class_id))
+        if tracking:
+            label = f"{class_name} {int(value)}"
+        else:
+            suffix = f" {float(value):.2f}" if show_confidence else ""
+            label = f"{class_name}{suffix}"
+
+        (text_width, text_height), baseline = cv2.getTextSize(
+            label,
+            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+            font_scale,
+            thickness=bbox_thick,
+        )
+        top = max(0, y1 - text_height - baseline)
+        cv2.rectangle(
+            image,
+            (x1, top),
+            (x1 + text_width, y1),
+            bbox_color,
+            thickness=cv2.FILLED,
+        )
+        cv2.putText(
+            image,
+            label,
+            (x1, max(text_height, y1 - 4)),
+            cv2.FONT_HERSHEY_COMPLEX_SMALL,
+            font_scale,
+            Text_colors,
+            bbox_thick,
+            lineType=cv2.LINE_AA,
+        )
+
+    return image
+
+
+tracker = YOLOByteTracker()
+# Historical qt.py imports this name. Keep it as an alias so button/thread code
+# does not need to know about the backend migration.
+yolo = tracker
+
+
+def Object_tracking(
+    model,
+    video_path,
+    output_path="",
+    input_size=input_size,
+    show=False,
+    CLASSES=YOLO_COCO_CLASSES,
+    score_threshold=score_threshold,
+    iou_threshold=0.3,
+    rectangle_colors="",
+    Track_only=None,
+):
+    """Load and annotate the first frame used by the existing object-select UI."""
+    del output_path, input_size, show, CLASSES
+
+    vid = cv2.VideoCapture(video_path)
+    ret, frame = vid.read()
+    vid.release()
+    if not ret:
+        return []
+
+    track_only = Track_only or ["person"]
+    classes = [0] if "person" in track_only else None
+
+    model.reset()
+    tracked_bboxes = model.track_frame(
+        frame,
+        conf=score_threshold,
+        iou=iou_threshold,
+        classes=classes,
+    )
+
+    image = draw_bbox(
+        frame.copy(),
+        tracked_bboxes,
+        tracking=True,
+        rectangle_colors=rectangle_colors,
+    )
+
+    os.makedirs("./captured", exist_ok=True)
+    cv2.imwrite("./captured/frame.jpg", image)
+
+    # Preview must not leak its tracker state into the real worker-thread run.
+    model.reset()
+    return tracked_bboxes
