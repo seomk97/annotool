@@ -508,6 +508,9 @@ class MainWindow(QMainWindow, form_class):
             self.space_key()
 
     def my_thread(self):
+        global tracking
+
+        tracking = True
         self.centralwidget.setFocus()
         self.btn_file.setEnabled(False)
         self.btn_track.setEnabled(True)
@@ -932,6 +935,7 @@ class MainWindow(QMainWindow, form_class):
 
     def flush(self):
         global input_object
+        global copied_input_object
         global end
         global flush
         global pause
@@ -950,6 +954,9 @@ class MainWindow(QMainWindow, form_class):
         reply = QMessageBox.question(self, 'Reset', 'Do you want to proceed?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
+            if workspace and writing_dir:
+                self.make_json()
+
             tracking = False
             flush = True
             set_speed = 1.0
@@ -979,8 +986,8 @@ class MainWindow(QMainWindow, form_class):
             self.btn_down.setEnabled(False)
             self.btn_tab.setEnabled(False)
             self.btn_action_toggle.setEnabled(False)
-            self.make_json()
             input_object = None
+            copied_input_object = None
             end = False
             self.horizontalSlider.setValue(1)
             self.horizontalSlider.setEnabled(False)
