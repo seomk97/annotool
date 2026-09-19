@@ -175,6 +175,11 @@ class MainWindow(QMainWindow, form_class):
         self.btn_delete.setShortcut(Qt.Key.Key_Delete)
         self.btn_action_toggle.setShortcut('b')
 
+        self.btn_load.setText("Load (L)")
+        self.btn_target.setText("Box No. (C)")
+        self.btn_up.setEnabled(True)
+        self.btn_down.setEnabled(True)
+
 
     @pyqtSlot(QImage)
     def pixmap_update(self, image):
@@ -304,8 +309,8 @@ class MainWindow(QMainWindow, form_class):
         self.horizontalSlider.setValue(0)
         self.label_end_frame.setText(str(num_of_frame))
 
-        # "Load" now means detect/overlay tracker IDs on the first frame.
-        self.btn_load.setText("Detect IDs (L)")
+        # Load overlays detection / tracking IDs on the first frame.
+        self.btn_load.setText("Load (L)")
         self.btn_load.setEnabled(True)
         self.btn_reset.setEnabled(True)
         self.btn_object.setEnabled(False)
@@ -441,8 +446,8 @@ class MainWindow(QMainWindow, form_class):
 
         target_id, ok = QInputDialog.getInt(
             self,
-            "Target ID",
-            "Current box / track ID:",
+            "Box No.",
+            "Current box number:",
             value=input_object if input_object is not None else 1,
             min=0,
         )
@@ -484,8 +489,8 @@ class MainWindow(QMainWindow, form_class):
 
         input_object_2, ok = QInputDialog.getInt(
             self,
-            "Target ID",
-            "Current box / track ID:",
+            "Box No.",
+            "Current box number:",
             value=input_object if input_object is not None else 1,
             min=0,
         )
@@ -982,8 +987,8 @@ class MainWindow(QMainWindow, form_class):
             self.btn_track.setText("Start Tracking\n(space)")
             self.btn_reset.setEnabled(False)
             self.btn_target.setEnabled(False)
-            self.btn_up.setEnabled(False)
-            self.btn_down.setEnabled(False)
+            self.btn_up.setEnabled(True)
+            self.btn_down.setEnabled(set_speed > 0.1)
             self.btn_tab.setEnabled(False)
             self.btn_action_toggle.setEnabled(False)
             input_object = None
