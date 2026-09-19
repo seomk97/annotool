@@ -33,7 +33,7 @@ def read_class_names(class_file_name=YOLO_COCO_CLASSES):
 NUM_CLASS = read_class_names()
 
 
-class YOLOByteTracker:
+class YOLOTrackerAdapter:
     """Small adapter that preserves the old annotool tracking interface.
 
     The UI expects each tracked box as:
@@ -104,7 +104,7 @@ class YOLOByteTracker:
         return tracked_bboxes
 
 
-tracker = YOLOByteTracker()
+tracker = YOLOTrackerAdapter()
 # Historical qt.py imports this name; keep it as an alias so the UI code does
 # not need to know which detection/tracking backend is active.
 yolo = tracker
