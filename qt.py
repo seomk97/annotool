@@ -73,6 +73,8 @@ class SignalOfTrack(QObject):
     frameCount = pyqtSignal(int)
     buttonName = pyqtSignal(str, bool)
     pixmapImage = pyqtSignal(QImage)
+    pauseState = pyqtSignal(bool)
+    videoEnded = pyqtSignal()
 
     def slider_run(self, value):
         self.frameCount.emit(int(value))
@@ -82,6 +84,12 @@ class SignalOfTrack(QObject):
 
     def pixmap_run(self, image):
         self.pixmapImage.emit(image)
+
+    def pause_run(self, paused):
+        self.pauseState.emit(paused)
+
+    def video_end_run(self):
+        self.videoEnded.emit()
 
 
 class MainWindow(QMainWindow, form_class):
@@ -707,21 +715,24 @@ class MainWindow(QMainWindow, form_class):
 
     def space_key(self):
         global pause
-        if not pause:
+        pause = not pause
+        self._apply_pause_ui(pause)
+        return
+
+    @pyqtSlot(bool)
+    def _apply_pause_ui(self, paused):
+        if paused:
             self.horizontalSlider.setEnabled(True)
-            pause = True
             self.btn_play.setChecked(False)
             self.btn_play.setText('Play\n(space)')
             self.btn_play.setShortcut(Qt.Key.Key_Space)
             self.centralwidget.setFocus()
         else:
             self.horizontalSlider.setEnabled(False)
-            pause = False
             self.btn_play.setChecked(True)
             self.btn_play.setText('Pause\n(space)')
             self.btn_play.setShortcut(Qt.Key.Key_Space)
             self.btn_tab.setEnabled(True)
-        return
 
     def q_key(self):
         self.flush()
@@ -971,6 +982,8 @@ class MainWindow(QMainWindow, form_class):
         signal.frameCount.connect(self.slider_control)
         signal.buttonName.connect(self.btn_control)
         signal.pixmapImage.connect(self.pixmap_update)
+        signal.pauseState.connect(self._apply_pause_ui)
+        signal.videoEnded.connect(self.video_end)
 
         tracker.reset()
 
@@ -998,6 +1011,7 @@ class MainWindow(QMainWindow, form_class):
         token = 0
         ret = 0
         img = 0
+        last_action_enabled = None
         while True:
 
             t1 = time.time()
@@ -1024,8 +1038,9 @@ class MainWindow(QMainWindow, form_class):
             else:
                 ret, img = vid.read()
                 if not ret:  # video end event
-                    self.space_key()
-                    self.video_end()
+                    pause = not pause
+                    signal.pause_run(pause)
+                    signal.video_end_run()
                 else:
                     framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
 
@@ -1050,12 +1065,14 @@ class MainWindow(QMainWindow, form_class):
                 signal.btn_run('btn_tab', False)
                 signal.btn_run('btn_object', False)
                 signal.btn_run('btn_target', False)
+                last_action_enabled = None
                 pause_flag = 1
                 pass
             elif jump_count > 8:
                 vid.set(cv2.CAP_PROP_POS_FRAMES, vid.get(cv2.CAP_PROP_POS_FRAMES) - 1)
                 framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
-                self.space_key()
+                pause = not pause
+                signal.pause_run(pause)
                 signal.btn_run('btn_play', True)
                 signal.btn_run('btn_action_toggle', True)
                 signal.btn_run('btn_tab', True)
@@ -1087,9 +1104,6 @@ class MainWindow(QMainWindow, form_class):
 
                         signal.slider_run(framecount)
                         time.sleep(0.02)
-
-                        if not copied_tracked_bboxes:
-                            signal.btn_run('btn_action_toggle', False)
 
                         if target_changed or jumped or pause_flag:
                             break
@@ -1131,9 +1145,6 @@ class MainWindow(QMainWindow, form_class):
 
                 signal.slider_run(framecount)
                 time.sleep(0.02)
-
-                if not copied_tracked_bboxes:
-                    signal.btn_run('btn_action_toggle', False)
 
                 if escape:
                     escape = 0
@@ -1193,7 +1204,10 @@ class MainWindow(QMainWindow, form_class):
                     copied_tracked_bboxes = []
                     pass
 
-            signal.btn_run('btn_action_toggle', bool(copied_tracked_bboxes))
+            action_enabled = bool(copied_tracked_bboxes)
+            if action_enabled != last_action_enabled:
+                signal.btn_run('btn_action_toggle', action_enabled)
+                last_action_enabled = action_enabled
 
             if not copied_tracked_bboxes:
                 image = cv2.putText(original_image, " {:.1f} FPS".format(fps), (5, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL,
