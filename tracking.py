@@ -10,7 +10,6 @@ from ultralytics import YOLO
 from camera import preprocess_frame
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26m.pt")
 REID_MODEL = os.environ.get("ANNOTOOL_REID_MODEL", "osnet_x1_0_msmt17.pt")
 INPUT_SIZE = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
