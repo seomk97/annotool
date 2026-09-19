@@ -1,9 +1,11 @@
 import os
 import colorsys
 import random
+import threading
 
 import cv2
 import numpy as np
+import torch
 from ultralytics import YOLO
 
 
@@ -11,14 +13,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.environ.get("ANNOTOOL_YOLO_MODEL", "yolo26s.pt")
 TRACKER_CONFIG = os.environ.get(
     "ANNOTOOL_TRACKER_CONFIG",
-    os.path.join(BASE_DIR, "configs", "botsort_reid.yaml"),
+    os.path.join(BASE_DIR, "configs", "tracktrack_reid.yaml"),
 )
 YOLO_COCO_CLASSES = os.path.join(BASE_DIR, "pjtlibs", "coco.names")
-input_size = 640
+input_size = int(os.environ.get("ANNOTOOL_IMGSZ", "960"))
+DEVICE = os.environ.get("ANNOTOOL_DEVICE", "0" if torch.cuda.is_available() else "cpu")
+USE_HALF = torch.cuda.is_available() and DEVICE.lower() != "cpu"
 
-# Keep low-confidence person detections available to BoT-SORT's second-stage
-# association, while using a normal NMS overlap threshold for crowded scenes.
-score_threshold = 0.10
+# Keep low-confidence person detections available to TrackTrack's second-stage
+# association. A larger inference size helps small/distant person detections.
+score_threshold = 0.05
 iou_threshold = 0.70
 
 
@@ -34,14 +38,14 @@ NUM_CLASS = read_class_names()
 
 
 class YOLOTrackerAdapter:
-    """Small adapter that preserves the old annotool tracking interface.
+    """Adapter that preserves annotool's historical tracking interface.
 
     The UI expects each tracked box as:
         [x1, y1, x2, y2, track_id, class_id]
 
-    Ultralytics owns detector/tracker internals; this adapter deliberately keeps
-    them out of qt.py so the original button/threading workflow can remain
-    unchanged.
+    The model, predictor, CUDA context, ReID hook and tracker objects are kept
+    alive for the full application session. Session changes reset only tracker
+    state, avoiding repeated predictor/model initialization.
     """
 
     def __init__(
@@ -50,36 +54,98 @@ class YOLOTrackerAdapter:
         conf=score_threshold,
         iou=iou_threshold,
         tracker_config=TRACKER_CONFIG,
+        imgsz=input_size,
+        device=DEVICE,
+        half=USE_HALF,
     ):
         self.model_path = model_path
         self.conf = conf
         self.iou = iou
         self.tracker_config = tracker_config
+        self.imgsz = imgsz
+        self.device = device
+        self.half = half
         self.model = None
+        self._prepared = False
+        self._lock = threading.RLock()
+
+    @property
+    def is_prepared(self):
+        return self._prepared
 
     def _ensure_model(self):
         if self.model is None:
             self.model = YOLO(self.model_path)
 
+    def _reset_tracker_state(self):
+        if self.model is None or self.model.predictor is None:
+            return
+
+        predictor = self.model.predictor
+        for active_tracker in getattr(predictor, "trackers", []) or []:
+            reset = getattr(active_tracker, "reset", None)
+            if callable(reset):
+                reset()
+
+        if hasattr(predictor, "vid_path"):
+            predictor.vid_path = [None] * len(predictor.vid_path)
+
+    def prepare(self, progress=None):
+        """Load and warm the detector/tracker once per application session."""
+        with self._lock:
+            if self._prepared:
+                if progress:
+                    progress("Model ready")
+                return
+
+            if progress:
+                progress("Loading YOLO26s model...")
+            self._ensure_model()
+
+            if progress:
+                progress("Initializing GPU and TrackTrack ReID...")
+            dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
+            self.model.track(
+                source=dummy,
+                persist=True,
+                tracker=self.tracker_config,
+                conf=self.conf,
+                iou=self.iou,
+                classes=[0],
+                imgsz=self.imgsz,
+                device=self.device,
+                half=self.half,
+                verbose=False,
+            )
+
+            self._reset_tracker_state()
+            self._prepared = True
+
+            if progress:
+                progress("Model ready")
+
     def reset(self):
-        """Reset only stream/tracker state while keeping UI state untouched."""
-        if self.model is not None:
-            # Rebuilding the predictor recreates Ultralytics tracker state on
-            # the next frame without reloading model weights.
-            self.model.predictor = None
+        """Reset IDs and temporal state without rebuilding the predictor."""
+        with self._lock:
+            self._reset_tracker_state()
 
     def track_frame(self, frame, conf=None, iou=None, classes=(0,)):
-        self._ensure_model()
+        with self._lock:
+            if not self._prepared:
+                self.prepare()
 
-        result = self.model.track(
-            source=frame,
-            persist=True,
-            tracker=self.tracker_config,
-            conf=self.conf if conf is None else conf,
-            iou=self.iou if iou is None else iou,
-            classes=list(classes) if classes is not None else None,
-            verbose=False,
-        )[0]
+            result = self.model.track(
+                source=frame,
+                persist=True,
+                tracker=self.tracker_config,
+                conf=self.conf if conf is None else conf,
+                iou=self.iou if iou is None else iou,
+                classes=list(classes) if classes is not None else None,
+                imgsz=self.imgsz,
+                device=self.device,
+                half=self.half,
+                verbose=False,
+            )[0]
 
         boxes = result.boxes
         if boxes is None or len(boxes) == 0 or boxes.id is None:
@@ -89,19 +155,17 @@ class YOLOTrackerAdapter:
         track_ids = boxes.id.int().cpu().tolist()
         class_ids = boxes.cls.int().cpu().tolist()
 
-        tracked_bboxes = []
-        for box, track_id, class_id in zip(xyxy, track_ids, class_ids):
-            tracked_bboxes.append(
-                [
-                    float(box[0]),
-                    float(box[1]),
-                    float(box[2]),
-                    float(box[3]),
-                    int(track_id),
-                    int(class_id),
-                ]
-            )
-        return tracked_bboxes
+        return [
+            [
+                float(box[0]),
+                float(box[1]),
+                float(box[2]),
+                float(box[3]),
+                int(track_id),
+                int(class_id),
+            ]
+            for box, track_id, class_id in zip(xyxy, track_ids, class_ids)
+        ]
 
 
 tracker = YOLOTrackerAdapter()
