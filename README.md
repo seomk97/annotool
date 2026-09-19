@@ -78,9 +78,29 @@ pause / slider seek / list jump 시에는 UI 상태를 초기화하지 않고 tr
 git clone https://github.com/seomk97/annotool.git
 cd annotool
 
+python -m venv .venv
+
+# Linux / macOS
+source .venv/bin/activate
+
 pip install -r requirements.txt
 python qt.py
 ```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/seomk97/annotool.git
+cd annotool
+
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+python qt.py
+```
+
+`torch`와 `torchvision`은 runtime dependency로 명시되어 있으며, 깨끗한 환경에서는 `pip install -r requirements.txt`로 함께 설치됩니다. 이미 다른 Python 환경에 설치된 PyTorch가 깨져 있거나 CUDA build를 직접 선택해야 하는 경우에는 [PyTorch installation guide](https://docs.pytorch.org/get-started/locally/)에 따라 해당 환경의 PyTorch를 먼저 설치한 뒤 requirements를 설치하세요.
 
 기본 모델은 `yolo26n.pt`이며 첫 실행 시 Ultralytics가 weight를 준비합니다.
 
