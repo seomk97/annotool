@@ -24,6 +24,7 @@ BOXMOT_DEVICE = (
 # stages. A larger inference size helps small/distant person detections.
 score_threshold = 0.05
 iou_threshold = 0.50
+COAST_FRAMES = int(os.environ.get("ANNOTOOL_COAST_FRAMES", "2"))
 
 
 def read_class_names(class_file_name=YOLO_COCO_CLASSES):
@@ -285,28 +286,63 @@ class YOLOTrackerAdapter:
             detections = self._detect(frame, conf=conf, iou=iou, classes=classes)
             tracks = self.boxmot.update(detections, frame=frame)
 
-        if tracks is None or len(tracks) == 0:
-            return []
-
         # BoxMOT AABB output:
         # [x1, y1, x2, y2, track_id, confidence, class_id, detection_index]
+        #
+        # OccluBoost keeps unmatched tracks alive internally, but only emits
+        # tracks updated on the current frame. For annotation playback that
+        # causes visible one-frame flicker whenever YOLO briefly misses a
+        # person. Bridge only a very short miss with the tracker's predicted
+        # state; the next real detection still corrects the trajectory.
         best_by_id = {}
-        for row in np.asarray(tracks):
-            track_id = int(row[4])
-            confidence = float(row[5])
-            candidate = (
-                confidence,
-                [
-                    float(row[0]),
-                    float(row[1]),
-                    float(row[2]),
-                    float(row[3]),
-                    track_id,
-                    int(row[6]),
-                ],
-            )
-            if track_id not in best_by_id or confidence > best_by_id[track_id][0]:
-                best_by_id[track_id] = candidate
+
+        if tracks is not None and len(tracks) > 0:
+            for row in np.asarray(tracks):
+                track_id = int(row[4])
+                confidence = float(row[5])
+                candidate = (
+                    confidence,
+                    [
+                        float(row[0]),
+                        float(row[1]),
+                        float(row[2]),
+                        float(row[3]),
+                        track_id,
+                        int(row[6]),
+                    ],
+                )
+                if track_id not in best_by_id or confidence > best_by_id[track_id][0]:
+                    best_by_id[track_id] = candidate
+
+        if COAST_FRAMES > 0:
+            for active_track in getattr(self.boxmot, "trackers", []) or []:
+                missed = int(getattr(active_track, "time_since_update", 0))
+                if missed < 1 or missed > COAST_FRAMES:
+                    continue
+                if not getattr(active_track, "is_activated", True):
+                    continue
+
+                track_id = int(active_track.id)
+                if track_id in best_by_id:
+                    continue
+
+                state = np.asarray(active_track.get_state()[0]).reshape(-1)
+                if state.size < 4:
+                    continue
+
+                class_id = int(getattr(active_track, "cls", 0))
+                confidence = float(getattr(active_track, "conf", 0.0))
+                best_by_id[track_id] = (
+                    confidence,
+                    [
+                        float(state[0]),
+                        float(state[1]),
+                        float(state[2]),
+                        float(state[3]),
+                        track_id,
+                        class_id,
+                    ],
+                )
 
         return [
             best_by_id[track_id][1]
