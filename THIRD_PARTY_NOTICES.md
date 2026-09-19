@@ -1,35 +1,45 @@
 # Third-Party Notices
 
-This project integrates open-source detection and tracking components. The annotation GUI and workflow are maintained in this repository; the components below retain their original upstream licenses.
+This project contains original annotation UI/workflow code and integrates open-source detection and tracking components.
 
-## PyLessons TensorFlow YOLOv3 / YOLOv4
+## Current runtime: Ultralytics YOLO26 + ByteTrack
+
+- Upstream: https://github.com/ultralytics/ultralytics
+- Used for: YOLO26 person detection and ByteTrack multi-object tracking
+- Integration: imported as the `ultralytics` Python dependency; not vendored into this repository
+- License: GNU AGPL v3
+- License copy: [THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt](THIRD_PARTY_LICENSES/Ultralytics-AGPL-3.0.txt)
+
+The current project is distributed under AGPL-3.0 to keep the runtime integration license-compatible.
+
+## Legacy backend: PyLessons TensorFlow YOLOv3 / YOLOv4
 
 - Upstream: https://github.com/pythonlessons/TensorFlow-2.x-YOLOv3
-- Used under: `pjtlibs/yolov3/` and related integration code
+- Historical code retained under: `pjtlibs/yolov3/`
 - License: MIT
 - License copy: [THIRD_PARTY_LICENSES/PyLessons-MIT.txt](THIRD_PARTY_LICENSES/PyLessons-MIT.txt)
 
-## Deep SORT
+## Legacy backend: Deep SORT
 
 - Upstream: https://github.com/nwojke/deep_sort
-- Used under: `pjtlibs/deep_sort/`
+- Historical code retained under: `pjtlibs/deep_sort/`
 - License: GNU GPL v3
 - License copy: [THIRD_PARTY_LICENSES/Deep-SORT-GPL-3.0.txt](THIRD_PARTY_LICENSES/Deep-SORT-GPL-3.0.txt)
 - Citation: Nicolai Wojke, Alex Bewley, Dietrich Paulus, *Simple Online and Realtime Tracking with a Deep Association Metric*, ICIP 2017.
 
-The copy included here follows the Deep SORT integration used by the PyLessons YOLO project and contains code matching the upstream Deep SORT implementation.
+The retained copy follows the Deep SORT integration used by the historical PyLessons-based implementation.
 
-## Darknet / YOLOv4 weights
+## Legacy Darknet / YOLOv4 weights
 
 - Upstream: https://github.com/AlexeyAB/darknet
-- Used for: pretrained YOLOv4 Darknet weights loaded by the TensorFlow YOLO implementation
+- Historical use: pretrained YOLOv4 Darknet weights loaded by the TensorFlow YOLO implementation
 - License: YOLO License / Darknet public-domain notice
 - License copy: [THIRD_PARTY_LICENSES/Darknet-YOLO-License.txt](THIRD_PARTY_LICENSES/Darknet-YOLO-License.txt)
 
-## Deep SORT appearance model
+## Legacy Deep SORT appearance model
 
 - File: `pjtlibs/mars-small128.pb`
-- Purpose: appearance descriptor used by Deep SORT
+- Purpose: appearance descriptor used by the historical Deep SORT backend
 - Related project/paper: Deep SORT / MARS person re-identification model
 
-This notice is intended to document provenance and the licenses of third-party components redistributed or referenced by this repository.
+The legacy files are retained to preserve the original 2020 implementation history; the modern runtime path does not import TensorFlow, the PyLessons YOLO implementation, or the Deep SORT encoder.
