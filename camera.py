@@ -122,15 +122,6 @@ class FisheyePreprocessor:
         )
 
 
-def configure_fisheye(calibration_path="", balance=None):
-    """Enable fisheye correction with a calibration file, or disable it with an empty path."""
-    fisheye.configure(calibration_path, balance=balance)
-
-
-def preprocess_frame(frame):
-    """Apply optional camera preprocessing while leaving normal video untouched."""
-    return fisheye.apply(frame)
-
 
 fisheye = FisheyePreprocessor(FISHEYE_CALIB, FISHEYE_BALANCE)
 
