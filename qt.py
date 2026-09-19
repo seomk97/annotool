@@ -66,7 +66,7 @@ score_threshold = 0.10
 iou_threshold = 0.70
 CLASSES = YOLO_COCO_CLASSES
 
-# The YOLO26 + ByteTrack adapter is imported from main.py as `tracker`.
+# The YOLO26s + BoT-SORT ReID adapter is imported from main.py as `tracker`.
 # Keep detector/tracker state outside the Qt button/signal state machine.
 
 class SignalOfTrack(QObject):
@@ -1258,7 +1258,7 @@ class MainWindow(QMainWindow, form_class):
                             escape = 0
                         pass
                     else:
-                        for i in range(max(0, int(set_speed) - 1))
+                        for i in range(max(0, int(set_speed) - 1)):
                             ret, img = vid.read()
                             signal.slider_run(vid.get(cv2.CAP_PROP_POS_FRAMES))
                             framecount = vid.get(cv2.CAP_PROP_POS_FRAMES)
