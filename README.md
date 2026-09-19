@@ -131,7 +131,8 @@ python qt.py
 | Arrow keys | 재생 속도 조절 (`0.1x` 단위, 최저 `0.1x`) |
 | Make JSON | 현재 기록을 JSON으로 저장 |
 | Delete | 선택된 기록 삭제 |
-| Action start | 액션명을 직접 입력해 시작 프레임을 기록하고, Action End에서 종료 프레임 기록 |
+| Action Start / End | 액션명을 직접 입력해 시작/종료 프레임을 구간 라벨로 기록 |
+| Action Snapshot | 현재 프레임을 단일 액션 라벨로 저장 |
 | Show target only | 선택한 target만 표시 |
 | Open folder | 저장 폴더 열기 |
 | Reset | 현재 작업 초기화 |
@@ -153,6 +154,7 @@ Tab        Target-only view
 J          Make JSON
 Delete     Delete selected annotation
 B          Action Start / End
+N          Action Snapshot
 Ctrl+Q     Quit
 ```
 
@@ -167,6 +169,10 @@ Ctrl+Q     Quit
 영상 파일을 선택하면 detector를 기다리지 않고 raw 첫 frame을 먼저 표시합니다. 이후 `Detect IDs`를 누르면 첫 frame에 tracker ID가 overlay됩니다.
 
 ### Custom action annotation
+
+`Action Start (B)` / `Action End`는 구간 액션을 기록합니다. `Action Snapshot (N)`은 현재 프레임 하나에 액션명을 바로 붙이는 단일-frame annotation입니다.
+
+Snapshot은 구간이 아니라 액션명 자체를 label로 저장합니다. 예를 들어 `jump`를 입력하면 해당 프레임의 label은 `jump`가 됩니다.
 
 `Action Start (B)`를 누르면 액션명을 직접 입력합니다. 입력을 확정한 현재 프레임이 `start_<action>`으로 저장되고 버튼은 해당 액션의 `Action End` 상태로 바뀝니다. 종료 시점에 다시 누르면 `end_<action>`이 저장됩니다.
 
