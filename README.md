@@ -121,7 +121,7 @@ python qt.py
 
 ### Fisheye camera prototype
 
-기본 동작은 기존 일반 카메라 영상과 동일합니다. 보정된 fisheye 입력을 사용하려면 OpenCV fisheye calibration 결과를 `.npz`로 저장하고 환경변수로 지정합니다.
+`File`에서 영상을 선택하면 `Normal / Fisheye` camera mode 선택창이 표시됩니다. `Fisheye`를 선택하면 이어서 OpenCV fisheye calibration `.npz` 파일을 고릅니다. `Normal`을 선택하면 기존 영상 처리와 완전히 동일하게 동작합니다.
 
 필수 배열은 `K` (3x3 camera matrix)와 `D` (4 fisheye distortion coefficients)이며, calibration 해상도를 알고 있으면 `DIM=[width, height]`도 함께 저장하는 것을 권장합니다.
 
@@ -134,7 +134,7 @@ np.savez(
 )
 ```
 
-Windows PowerShell:
+환경변수는 기본 선택 경로와 balance를 미리 지정하고 싶을 때만 사용합니다.
 
 ```powershell
 $env:ANNOTOOL_FISHEYE_CALIB="C:\path\to\fisheye_calib.npz"
@@ -142,7 +142,7 @@ $env:ANNOTOOL_FISHEYE_BALANCE="0.2"
 python qt.py
 ```
 
-`ANNOTOOL_FISHEYE_CALIB`을 지정하지 않으면 전처리는 완전히 비활성화됩니다. 활성화하면 해상도별 undistortion map을 한 번 생성해 캐시하고, 이후 화면 표시·detection·tracking·저장 crop에 동일한 `cv2.remap` 결과를 사용합니다. `ANNOTOOL_FISHEYE_BALANCE`는 기본 `0.2`이며 0에 가까울수록 검은 경계를 줄이는 쪽, 1에 가까울수록 원래 FOV를 더 보존하는 쪽입니다.
+Fisheye가 활성화되면 해상도별 undistortion map을 한 번 생성해 캐시하고, 이후 화면 표시·detection·tracking·저장 crop에 동일한 `cv2.remap` 결과를 사용합니다. `ANNOTOOL_FISHEYE_BALANCE`는 기본 `0.2`이며 0에 가까울수록 검은 경계를 줄이는 쪽, 1에 가까울수록 원래 FOV를 더 보존하는 쪽입니다.
 
 2020년 당시 TensorFlow / CUDA 환경은 `requirements-legacy.txt`에 보존했습니다.
 
