@@ -138,6 +138,26 @@ python qt.py
 
 각 버튼의 주요 shortcut은 GUI 버튼에 함께 표시됩니다.
 
+현재 shortcut:
+
+```text
+F          File
+L          Load
+O          Object
+Space      Start / Pause / Resume
+Q          Reset
+C          Box No.
+← / →      Speed -0.1x / +0.1x
+Home       Open folder
+Tab        Target-only view
+J          Make JSON
+Delete     Delete selected annotation
+B          Action Start / End
+Ctrl+Q     Quit
+```
+
+기존 W/R/S 고정 action shortcut은 custom action 입력 방식으로 전환하면서 제거했습니다.
+
 ### Object identity and box 번호
 
 `Object`는 사용자가 정하는 논리적인 이름입니다. 예를 들어 `person_A`, `customer_01`처럼 지정할 수 있고 결과 폴더와 JSON 파일도 이 이름을 기준으로 저장됩니다.
